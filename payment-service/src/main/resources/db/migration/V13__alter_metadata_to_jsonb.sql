@@ -1,0 +1,1 @@
+ALTER TABLE invoices ALTER COLUMN metadata TYPE jsonb USING to_jsonb(metadata);

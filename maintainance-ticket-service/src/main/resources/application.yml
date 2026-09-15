@@ -1,0 +1,78 @@
+spring:
+  application:
+    name: maintenance-ticket-service
+
+  # ==================== DATASOURCE ====================
+  datasource:
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://postgres:5432/ticket_db}
+    username: ${SPRING_DATASOURCE_USERNAME:postgres}
+    password: ${SPRING_DATASOURCE_PASSWORD:apex123}
+    driver-class-name: org.postgresql.Driver
+
+  # ==================== JPA / HIBERNATE ====================
+  jpa:
+    hibernate:
+      ddl-auto: ${SPRING_JPA_HIBERNATE_DDL_AUTO:update}
+    show-sql: true
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+        format_sql: true
+
+  # ==================== FLYWAY (for migrations) ====================
+  flyway:
+    enabled: ${SPRING_FLYWAY_ENABLED:true}
+    baseline-on-migrate: true
+    locations: classpath:db/migration
+    validate-on-migrate: false
+
+  # ==================== KAFKA ====================
+  kafka:
+    bootstrap-servers: ${SPRING_KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+    listener:
+      auto-startup: ${SPRING_KAFKA_LISTENER_AUTO_STARTUP:true}
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
+      properties:
+        enable.idempotence: true
+        acks: all
+        retries: 10
+    consumer:
+      group-id: maintenance-group
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.springframework.kafka.support.serializer.JsonDeserializer
+      properties:
+        spring.json.trusted.packages: "*"
+        spring.json.type.mapping: |
+          leaseCreated:com.platform.common.events.lease.LeaseCreatedEvent,
+          leaseTerminated:com.platform.common.events.lease.LeaseTerminatedEvent
+      enable-auto-commit: false
+
+# ==================== SERVER ====================
+server:
+  port: ${SERVER_PORT:8084}
+
+# ============================================================
+# ✅ ACTUATOR — exposes /actuator/health and /actuator/info
+# ============================================================
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+      base-path: /actuator
+  endpoint:
+    health:
+      show-details: always
+      probes:
+        enabled: true
+  info:
+    env:
+      enabled: true
+
+# ==================== LOGGING ====================
+logging:
+  level:
+    com.apex.maintenanceTicketService: DEBUG
+    org.springframework.kafka: INFO

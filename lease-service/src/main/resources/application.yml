@@ -1,0 +1,78 @@
+server:
+  port: ${SERVER_PORT:8081}
+
+spring:
+  application:
+    name: lease-service
+
+  # ---------- Datasource ----------
+  datasource:
+    # Default URL uses port 5000. Override with SPRING_DATASOURCE_URL if needed.
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/lease_db}
+    username: ${SPRING_DATASOURCE_USERNAME:postgres}
+    password: ${SPRING_DATASOURCE_PASSWORD:apex123}
+    driver-class-name: org.postgresql.Driver
+
+  # ---------- JPA ----------
+  jpa:
+    hibernate:
+      ddl-auto: ${SPRING_JPA_HIBERNATE_DDL_AUTO:validate}
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+        format_sql: true
+        jdbc:
+          lob:
+            non_contextual_creation: true
+    show-sql: ${SPRING_JPA_SHOW_SQL:false}
+
+  # ---------- Flyway ----------
+  flyway:
+    enabled: ${SPRING_FLYWAY_ENABLED:true}
+    baseline-on-migrate: ${SPRING_FLYWAY_BASELINE_ON_MIGRATE:true}
+    locations: ${SPRING_FLYWAY_LOCATIONS:classpath:db/migration}
+    clean-on-validation-error: ${SPRING_FLYWAY_CLEAN_ON_VALIDATION_ERROR:false}
+
+  # ---------- Kafka ----------
+  kafka:
+    bootstrap-servers: ${SPRING_KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+    listener:
+      auto-startup: ${SPRING_KAFKA_LISTENER_AUTO_STARTUP:true}
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
+    consumer:
+      group-id: ${SPRING_KAFKA_CONSUMER_GROUP_ID:lease-service-group}
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.springframework.kafka.support.serializer.JsonDeserializer
+      properties:
+        spring.json.trusted.packages: "*"
+    admin:
+      auto-create: ${SPRING_KAFKA_ADMIN_AUTO_CREATE:true}
+
+# ============================================================
+# ✅ ACTUATOR — exposes /actuator/health and /actuator/info
+# ============================================================
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+      base-path: /actuator
+  endpoint:
+    health:
+      show-details: always
+      probes:
+        enabled: true
+  info:
+    env:
+      enabled: true
+
+# ---------- Logging ----------
+logging:
+  level:
+    com.apex.module.lease: ${LOG_LEVEL_LEASE:INFO}
+    org.springframework.kafka: ${LOG_LEVEL_KAFKA:WARN}
+    org.hibernate: ${LOG_LEVEL_HIBERNATE:WARN}
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss} - %msg%n"

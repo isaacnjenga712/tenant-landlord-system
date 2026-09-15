@@ -1,0 +1,40 @@
+# ---- Build stage ----
+FROM maven:3.8.6-eclipse-temurin-17-alpine AS build
+
+WORKDIR /app
+
+# Copy pom.xml first to cache dependencies
+COPY pom.xml .
+RUN mvn dependency:go-offline -B
+
+# Copy source code
+COPY src ./src
+
+# Package the application (skip tests)
+RUN mvn clean package -DskipTests
+
+# ---- Runtime stage ----
+FROM eclipse-temurin:17-jre-alpine
+
+WORKDIR /app
+
+# Copy the JAR from the build stage
+COPY --from=build /app/target/*.jar app.jar
+
+# Set default environment variables (can be overridden)
+ENV SPRING_PROFILES_ACTIVE=prod
+ENV DB_URL=jdbc:postgresql://postgres:5432/mpesa_db
+ENV DB_USERNAME=postgres
+ENV DB_PASSWORD=apex123
+ENV DARAJA_CONSUMER_KEY=cUuP3qgfT3SgPrFXjFOb9lGVSps24RyfW3WZrNpwwprmmqAN
+ENV DARAJA_CONSUMER_SECRET=dsLKHq7nDEoGx0ymMYAjTUpuhF5gc1I0bz33VL6I3TIPHzIGEwuu2fDiZfRRDuDY
+ENV DARAJA_PASSKEY=bfb279f9aa9bdbcf158e97dd71a467cd2e0c893059b10f78e6b72ada1ed2c919
+ENV DARAJA_SHORTCODE=174379
+ENV DARAJA_CALLBACK_URL=https://your-domain.com/api/payments/callback
+ENV DARAJA_BASE_URL=https://sandbox.safaricom.co.ke
+
+# Expose the application port
+EXPOSE 8080
+
+# Run the JAR
+ENTRYPOINT ["java", "-jar", "app.jar"]

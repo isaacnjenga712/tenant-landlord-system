@@ -1,0 +1,31 @@
+﻿<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <title>Rent Payment Receipt</title>
+    <style>
+        body { font-family: Arial, sans-serif; background-color: #f4f4f4; padding: 20px; }
+        .container { background: white; padding: 20px; border-radius: 8px; max-width: 600px; margin: auto; }
+        h2 { color: #28a745; }
+        .amount { font-size: 24px; font-weight: bold; color: #28a745; }
+        .details { margin: 20px 0; }
+        .detail-item { padding: 8px 0; border-bottom: 1px solid #eee; }
+        .label { font-weight: bold; display: inline-block; width: 120px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h2>✅ Rent Payment Received</h2>
+        <p>Dear Tenant,</p>
+        <p>We have received your rent payment. Thank you!</p>
+        <div class="details">
+            <div class="detail-item"><span class="label">Property ID:</span> <span th:text="${propertyId}">10</span></div>
+            <div class="detail-item"><span class="label">Amount:</span> <span class="amount">$<span th:text="${amount}">0.00</span></span></div>
+            <div class="detail-item"><span class="label">Payment Method:</span> <span th:text="${method}">card</span></div>
+        </div>
+        <p style="margin-top: 20px; color: #666;">This is your official receipt for this payment.</p>
+        <hr>
+        <small>This is an automated message. Please do not reply.</small>
+    </div>
+</body>
+</html>

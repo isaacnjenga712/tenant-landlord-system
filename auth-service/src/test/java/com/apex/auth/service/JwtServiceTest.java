@@ -16,10 +16,15 @@ class JwtServiceTest {
 
     private JwtService jwtService;
 
+    // ---------- TEST-ONLY SECRETS ----------
+    // These are deliberately fake, hardcoded test values.
+    // They MUST NOT match the production secrets in .env, and they
+    // are only used by this unit test to exercise JwtService.
     private static final String ACCESS_SECRET =
-            "404E635266556A586E3272357538782F413F4428472B4B6250645367566B5970";
+            "test-only-access-secret-0123456789abcdef0123456789abcdef0123456789abcdef";
     private static final String REFRESH_SECRET =
-            "607164346A576E5A7234753778217A25432A462D4A614E645267556B587032";
+            "test-only-refresh-secret-0123456789abcdef0123456789abcdef0123456789abcdef";
+
     private static final Long ACCESS_EXP = 900_000L;        // 15 min
     private static final Long REFRESH_EXP = 604_800_000L;   // 7 days
 
@@ -81,7 +86,6 @@ class JwtServiceTest {
     void validateAccessToken_signedWithWrongSecret() {
         String refreshToken = jwtService.generateRefreshToken(user);
 
-        // Passing a refresh token where an access token is expected should fail
         assertThatThrownBy(() -> jwtService.validateAccessToken(refreshToken, user))
                 .isInstanceOf(Exception.class);
     }
@@ -125,7 +129,6 @@ class JwtServiceTest {
         String accessToken = jwtService.generateAccessToken(user);
         String refreshToken = jwtService.generateRefreshToken(user);
 
-        // Trying to read an access token with the refresh secret must throw
         assertThatThrownBy(() -> jwtService.extractUsernameFromRefreshToken(accessToken))
                 .isInstanceOf(Exception.class);
 

@@ -1,0 +1,68 @@
+version: '3.8'
+
+services:
+  # ============================================================
+  # PostgreSQL (shared database for M‑Pesa)
+  # ============================================================
+  postgres:
+    image: postgres:15
+    container_name: postgres-db
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: apex123
+      POSTGRES_DB: mpesa_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - mpesa-network
+
+  # ============================================================
+  # M‑Pesa (Payment) Service
+  # ============================================================
+  mpesa-service:
+    build:
+      context: ./mpesa-service                 # adjust to your actual folder
+      dockerfile: Dockerfile
+    container_name: mpesa-service
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "8080:8080"
+    environment:
+      SERVER_PORT: 8080
+      SPRING_DATASOURCE_URL: "jdbc:postgresql://postgres:5432/mpesa_db"
+      SPRING_DATASOURCE_USERNAME: postgres
+      SPRING_DATASOURCE_PASSWORD: apex123
+
+      # Daraja API Credentials (from your sandbox)
+      DARAJA_CONSUMER_KEY: REMOVED
+      DARAJA_CONSUMER_SECRET: REMOVED
+      DARAJA_PASSKEY: REMOVED
+      DARAJA_SHORTCODE: 174379
+      DARAJA_CALLBACK_URL: https://unguarded-cornhusk-impart.ngrok-free.dev/api/payments/callback   # Replace with your actual public URL
+      DARAJA_BASE_URL: https://sandbox.safaricom.co.ke
+    networks:
+      - mpesa-network
+
+# ============================================================
+# Volumes
+# ============================================================
+volumes:
+  postgres_data:
+
+# ============================================================
+# Network
+# ============================================================
+networks:
+  mpesa-network:
+    driver: bridge
+
+

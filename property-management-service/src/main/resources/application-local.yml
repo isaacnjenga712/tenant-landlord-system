@@ -1,0 +1,22 @@
+spring:
+  datasource:
+    url: jdbc:postgresql://localhost:5000/property_service_db
+    username: postgres
+    password: apex123
+
+  jpa:
+    hibernate:
+      ddl-auto: create-drop   # Drops and recreates tables on restart (useful for local dev)
+    show-sql: true
+
+  kafka:
+    bootstrap-servers: localhost:9092
+    listener:
+      auto-startup: false     # Disable Kafka listeners locally (to avoid connection errors if Kafka is not running)
+
+server:
+  port: 8082
+
+logging:
+  level:
+    com.apex.propertyManagementService: DEBUG

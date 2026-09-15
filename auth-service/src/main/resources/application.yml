@@ -1,0 +1,60 @@
+server:
+  port: ${SERVER_PORT:8090}          # <-- make it overridable via env var
+
+spring:
+  application:
+    name: auth-service
+  datasource:
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/tenant_landlord_auth}
+    username: ${SPRING_DATASOURCE_USERNAME:postgres}
+    password: ${SPRING_DATASOURCE_PASSWORD:apex123}
+    driver-class-name: org.postgresql.Driver
+  jpa:
+    hibernate:
+      ddl-auto: ${SPRING_JPA_HIBERNATE_DDL_AUTO:validate}
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+        format_sql: true
+    show-sql: false
+  flyway:
+    enabled: ${SPRING_FLYWAY_ENABLED:true}
+    baseline-on-migrate: true
+    locations: ${SPRING_FLYWAY_LOCATIONS:classpath:db/migration}
+  kafka:
+    bootstrap-servers: ${SPRING_KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+    consumer:
+      group-id: ${SPRING_KAFKA_CONSUMER_GROUP_ID:auth-service-group}
+    listener:
+      auto-startup: ${SPRING_KAFKA_LISTENER_AUTO_STARTUP:true}
+
+jwt:
+  access:
+    secret: ${JWT_ACCESS_SECRET:404E635266556A586E3272357538782F413F4428472B4B6250645367566B5970}
+    expiration: 900000      # 15 minutes
+  refresh:
+    secret: ${JWT_REFRESH_SECRET:607164346A576E5A7234753778217A25432A462D4A614E645267556B587032}
+    expiration: 604800000   # 7 days
+
+# ============================================================
+# Actuator — exposes /actuator/health and /actuator/info
+# ============================================================
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+      base-path: /actuator
+  endpoint:
+    health:
+      show-details: always
+      probes:
+        enabled: true
+  info:
+    env:
+      enabled: true
+
+logging:
+  level:
+    org.springframework.security: DEBUG
+    com.landten.auth: DEBUG

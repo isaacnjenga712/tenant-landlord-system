@@ -1,0 +1,25 @@
+﻿<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <title>Maintenance Request Alert</title>
+    <style>
+        body { font-family: Arial, sans-serif; background-color: #f4f4f4; padding: 20px; }
+        .container { background: white; padding: 20px; border-radius: 8px; max-width: 600px; margin: auto; }
+        h2 { color: #333; }
+        .property { font-weight: bold; color: #007bff; }
+        .description { background: #f9f9f9; padding: 10px; border-left: 3px solid #ffc107; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h2>🏠 Maintenance Request Created</h2>
+        <p><strong>Property ID:</strong> <span class="property" th:text="${propertyId}">123</span></p>
+        <p><strong>Description:</strong></p>
+        <div class="description" th:text="${description}">Leaking faucet in kitchen</div>
+        <p style="margin-top: 20px; color: #666;">We have received your request and will attend to it shortly.</p>
+        <hr>
+        <small>This is an automated message. Please do not reply.</small>
+    </div>
+</body>
+</html>

@@ -1,0 +1,16 @@
+.git
+.gitignore
+*.md
+target/
+*.log
+*.tmp
+*.jar
+*.war
+*.ear
+.idea/
+*.iml
+*.class
+*.properties
+*.yml
+*.yaml
+*.json

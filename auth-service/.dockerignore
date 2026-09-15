@@ -1,0 +1,35 @@
+# Build artifacts
+target/
+build/
+*.jar
+*.war
+
+# Git
+.git/
+.gitignore
+
+# IDE
+.idea/
+*.iml
+.vscode/
+*.swp
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs and temp
+*.log
+logs/
+run.log
+*.tmp
+
+# Docker
+Dockerfile
+.dockerignore
+docker-compose*.yml
+
+# Docs
+README.md
+*.md

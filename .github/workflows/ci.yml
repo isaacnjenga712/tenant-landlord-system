@@ -1,5 +1,5 @@
 
-name: CI — Build & Test
+name: CI Build and Test
 
 
 
@@ -7,17 +7,25 @@ on:
 
   push:
 
-    branches: [ main, develop ]
+    branches:
+
+      - main
+
+      - develop
 
   pull_request:
 
-    branches: [ main, develop ]
+    branches:
+
+      - main
+
+      - develop
 
 
 
 env:
 
-  JAVA_VERSION: '17'
+  JAVA_VERSION: "17"
 
 
 
@@ -25,7 +33,7 @@ jobs:
 
   build-and-test:
 
-    name: Build ${{ matrix.service }}
+    name: Build and test
 
     runs-on: ubuntu-latest
 
@@ -55,17 +63,25 @@ jobs:
 
     steps:
 
-      - uses: actions/checkout@v4
+      - name: Checkout
 
-      - uses: actions/setup-java@v4
+        uses: actions/checkout@v4
+
+
+
+      - name: Set up JDK
+
+        uses: actions/setup-java@v4
 
         with:
 
-          java-version: ${{ env.JAVA_VERSION }}
+          java-version: "17"
 
           distribution: temurin
 
           cache: maven
+
+
 
       - name: Build
 

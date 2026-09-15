@@ -1,5 +1,5 @@
 
-name: CD — Build, Push & Deploy
+name: CD Build and Push
 
 
 
@@ -7,7 +7,9 @@ on:
 
   push:
 
-    branches: [ main ]
+    branches:
+
+      - main
 
   workflow_dispatch:
 
@@ -25,7 +27,7 @@ jobs:
 
   build-and-push:
 
-    name: Build & push ${{ matrix.service }}
+    name: Build and push
 
     runs-on: ubuntu-latest
 
@@ -63,29 +65,47 @@ jobs:
 
     steps:
 
-      - uses: actions/checkout@v4
+      - name: Checkout
 
-      - if: matrix.service != 'nginx'
+        uses: actions/checkout@v4
+
+
+
+      - name: Set up JDK
+
+        if: matrix.service != 'nginx'
 
         uses: actions/setup-java@v4
 
         with:
 
-          java-version: '17'
+          java-version: "17"
 
           distribution: temurin
 
           cache: maven
 
-      - if: matrix.service != 'nginx'
+
+
+      - name: Build jar
+
+        if: matrix.service != 'nginx'
 
         working-directory: ${{ matrix.service }}
 
         run: mvn -B -ntp clean package -Dmaven.test.skip=true
 
-      - uses: docker/setup-buildx-action@v3
 
-      - uses: docker/login-action@v3
+
+      - name: Set up Buildx
+
+        uses: docker/setup-buildx-action@v3
+
+
+
+      - name: Log in to GHCR
+
+        uses: docker/login-action@v3
 
         with:
 
@@ -95,9 +115,13 @@ jobs:
 
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - uses: docker/metadata-action@v5
+
+
+      - name: Extract metadata
 
         id: meta
+
+        uses: docker/metadata-action@v5
 
         with:
 
@@ -109,9 +133,13 @@ jobs:
 
             type=sha,prefix=sha-
 
-            type=raw,value=latest,enable={{is_default_branch}}
+            type=raw,value=latest
 
-      - uses: docker/build-push-action@v5
+
+
+      - name: Build and push
+
+        uses: docker/build-push-action@v5
 
         with:
 

@@ -1,35 +1,32 @@
-# ==============================================================
-# STAGE 1 — BUILD
-# ==============================================================
+# syntax=docker/dockerfile:1.4
+
 FROM maven:3.9-eclipse-temurin-17-alpine AS build
 
 WORKDIR /build
 
-# Copy pom.xml and source in one shot, then build.
-# (No `dependency:go-offline` — it's unreliable on Spring Boot projects.)
+COPY settings.xml /root/.m2/settings.xml
+
 COPY pom.xml .
+
+RUN --mount=type=cache,target=/root/.m2 mvn -B -ntp dependency:go-offline -Dmaven.test.skip=true || true
+
 COPY src ./src
 
-RUN mvn -B clean package -Dmaven.test.skip=true
+RUN --mount=type=cache,target=/root/.m2 mvn -B -ntp clean package -Dmaven.test.skip=true
 
-# ==============================================================
-# STAGE 2 — RUNTIME
-# ==============================================================
 FROM eclipse-temurin:17-jre-alpine
 
-RUN addgroup -S appgroup && adduser -S appuser -G appgroup
+RUN apk add --no-cache wget
 
 WORKDIR /app
 
 COPY --from=build /build/target/*.jar app.jar
-RUN chown -R appuser:appgroup /app
 
-USER appuser
 EXPOSE 8080
 
-ENV JAVA_OPTS="-XX:+UseContainerSupport \
-               -XX:MaxRAMPercentage=75 \
-               -XX:+UseG1GC \
-               -Djava.security.egd=file:/dev/./urandom"
+ENV JAVA_OPTS="-XX:+UseContainerSupport -XX:MaxRAMPercentage=75.0 -XX:+ExitOnOutOfMemoryError"
 
-ENTRYPOINT ["sh", "-c", "exec java $JAVA_OPTS -jar /app/app.jar"]
+HEALTHCHECK --interval=30s --timeout=5s --start-period=40s --retries=3 CMD wget --no-verbose --tries=1 --spider http://localhost:8080/actuator/health || exit 1
+
+ENTRYPOINT ["sh", "-c", "exec java $JAVA_OPTS -jar app.jar"]
+

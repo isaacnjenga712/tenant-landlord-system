@@ -1,36 +1,49 @@
-FROM maven:3.9.6-eclipse-temurin-17 AS build
 
-WORKDIR /app
+# syntax=docker/dockerfile:1.4
 
-# Install root parent pom
-COPY pom.xml /tmp/root-pom.xml
-RUN cd /tmp && \
-    mvn install:install-file -Dfile=root-pom.xml \
-        -DgroupId=com.platform \
-        -DartifactId=tenant-landlord-system \
-        -Dversion=1.0.0-SNAPSHOT \
-        -Dpackaging=pom
+FROM maven:3.9-eclipse-temurin-17-alpine AS build
 
-# Install common module
-COPY common /tmp/common
-RUN cd /tmp/common && mvn clean install -DskipTests
 
-# Copy service source
-COPY property-management-service/pom.xml .
-COPY property-management-service/src ./src
 
-# Build with retry
-RUN for i in 1 2 3; do \
-        echo "Attempt $i to build property-management-service..." && \
-        mvn clean package -DskipTests && \
-        echo "Build successful!" && \
-        break || \
-        echo "Build failed, retrying... (attempt $i)" && \
-        sleep 5; \
-    done
+WORKDIR /build
+
+
+
+COPY settings.xml /root/.m2/settings.xml
+
+
+
+COPY libs/ /tmp/libs/
+
+RUN --mount=type=cache,target=/root/.m2 mvn -B -ntp install:install-file -Dfile=/tmp/libs/common-1.0.0-SNAPSHOT.jar -DgroupId=com.platform -DartifactId=common -Dversion=1.0.0-SNAPSHOT -Dpackaging=jar -DgeneratePom=true
+
+
+
+COPY pom.xml .
+
+RUN --mount=type=cache,target=/root/.m2 mvn -B -ntp dependency:go-offline -Dmaven.test.skip=true || true
+
+
+
+COPY src ./src
+
+RUN --mount=type=cache,target=/root/.m2 mvn -B -ntp clean package -Dmaven.test.skip=true
+
+
 
 FROM eclipse-temurin:17-jre-alpine
+
+RUN apk add --no-cache wget
+
 WORKDIR /app
-COPY --from=build /app/target/*.jar app.jar
+
+COPY --from=build /build/target/*.jar app.jar
+
 EXPOSE 8082
-ENTRYPOINT ["java", "-jar", "app.jar"]
+
+ENV JAVA_OPTS="-XX:+UseContainerSupport -XX:MaxRAMPercentage=75.0 -XX:+ExitOnOutOfMemoryError"
+
+HEALTHCHECK --interval=30s --timeout=5s --start-period=40s --retries=3 CMD wget --no-verbose --tries=1 --spider http://localhost:8082/actuator/health || exit 1
+
+ENTRYPOINT ["sh", "-c", "exec java $JAVA_OPTS -jar app.jar"]
+

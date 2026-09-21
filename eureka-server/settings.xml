@@ -1,0 +1,21 @@
+
+<?xml version="1.0" encoding="UTF-8"?>
+
+<settings xmlns="http://maven.apache.org/SETTINGS/1.0.0">
+
+  <mirrors>
+
+    <mirror>
+
+      <id>flyway-mirror</id>
+
+      <url>https://repo.maven.apache.org/maven2</url>
+
+      <mirrorOf>flyway-repo,nexus.flywaydb.org</mirrorOf>
+
+    </mirror>
+
+  </mirrors>
+
+</settings>
+

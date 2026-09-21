@@ -2,61 +2,98 @@ spring:
   application:
     name: notification-engine
 
-  # ==================== MongoDB ====================
   data:
     mongodb:
-      uri: ${SPRING_DATA_MONGODB_URI:mongodb://localhost:27017/notificationdb}
+      uri: ${SPRING_DATA_MONGODB_URI:mongodb://mongodb:27017/notificationdb}
 
-  # ==================== Mail (SMTP) ====================
   mail:
     host: ${SPRING_MAIL_HOST:smtp.gmail.com}
     port: ${SPRING_MAIL_PORT:587}
-    username: ${SPRING_MAIL_USERNAME:isaackaruku029@gmail.com}
-    password: ${SPRING_MAIL_PASSWORD:svbq owho gsgq tzqr}
+    username: ${SPRING_MAIL_USERNAME:}
+    password: ${SPRING_MAIL_PASSWORD:}
     properties:
       mail:
         smtp:
           auth: ${SPRING_MAIL_PROPERTIES_MAIL_SMTP_AUTH:true}
           starttls:
             enable: ${SPRING_MAIL_PROPERTIES_MAIL_SMTP_STARTTLS_ENABLE:true}
+          connectiontimeout: 5000
+          timeout: 5000
+          writetimeout: 5000
 
-  # ==================== Thymeleaf ====================
   thymeleaf:
     prefix: classpath:/templates/
     suffix: .html
     cache: false
     check-existence: true
 
-  # ==================== Kafka ====================
   kafka:
-    bootstrap-servers: ${SPRING_KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
-    listener:
-      auto-startup: ${SPRING_KAFKA_LISTENER_AUTO_STARTUP:true}
+    bootstrap-servers: ${SPRING_KAFKA_BOOTSTRAP_SERVERS:kafka:29092}
     producer:
       key-serializer: org.apache.kafka.common.serialization.StringSerializer
       value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
+      acks: all
+      retries: 3
+      properties:
+        enable.idempotence: true
     consumer:
       group-id: notification-engine-group
       auto-offset-reset: earliest
       key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
       value-deserializer: org.springframework.kafka.support.serializer.JsonDeserializer
+      enable-auto-commit: false
       properties:
         spring.json.trusted.packages: "*"
-        spring.json.type.mapping: "payment:com.property.notification.dto.PaymentEventDto,maintenance:com.property.notification.dto.MaintenanceEventDto"
+        spring.json.use.type.headers: false
+        spring.json.value.default.type: java.util.Map
+        spring.json.type.mapping: >-
+          payment:com.property.notification.dto.PaymentEventDto,
+          maintenance:com.property.notification.dto.MaintenanceEventDto,
+          leaseCreated:com.platform.common.events.lease.LeaseCreatedEvent,
+          paymentConfirmed:com.platform.common.events.payment.PaymentConfirmedEvent,
+          maintenanceRequested:com.platform.common.events.maintenance.MaintenanceRequestedEvent,
+          maintenanceResolved:com.platform.common.events.maintenance.MaintenanceResolvedEvent,
+          stkPushResult:com.platform.common.events.mpesa.StkPushResultEvent
+    listener:
+      auto-startup: true
+      ack-mode: manual_immediate
+      missing-topics-fatal: false
+      concurrency: 5
+      properties:
+        max.poll.interval.ms: 300000
+        max.poll.records: 50
 
-# ==================== Custom Kafka topics ====================
+eureka:
+  client:
+    service-url:
+      defaultZone: ${EUREKA_CLIENT_SERVICEURL_DEFAULTZONE:http://eureka-server:8761/eureka/}
+    register-with-eureka: true
+    fetch-registry: true
+  instance:
+    prefer-ip-address: true
+    lease-renewal-interval-in-seconds: 10
+    lease-expiration-duration-in-seconds: 30
+
 app:
   kafka:
     topics:
       payment: payment-events
       maintenance: maintenance-events
+      payment-confirmed: payment.events.confirmed
+      payment-due: payment.events.due
+      lease-created: lease.events.created
+      lease-terminated: lease.events.terminated
+      maintenance-requested: maintenance.events.requested
+      maintenance-resolved: maintenance.events.resolved
+      mpesa-stk-result: mpesa.events.stk.result
+      notification-dlq: notification.events.dlq
 
-# ==================== SMS Gateway ====================
 sms:
   gateway:
     url: ${SMS_GATEWAY_URL:http://mock-sms-gateway/send}
+    timeout: 5000
+    retry-max: 3
 
-# ==================== Resilience4j ====================
 resilience4j:
   retry:
     instances:
@@ -65,30 +102,44 @@ resilience4j:
         waitDuration: 2s
         retryExceptions:
           - java.lang.RuntimeException
+          - org.springframework.web.client.RestClientException
+      emailRetry:
+        maxAttempts: 3
+        waitDuration: 3s
+  circuitbreaker:
+    instances:
+      emailCB:
+        failureRateThreshold: 50
+        waitDurationInOpenState: 30s
+      smsCB:
+        failureRateThreshold: 50
+        waitDurationInOpenState: 30s
 
-# ==================== Server ====================
 server:
   port: ${SERVER_PORT:8080}
 
-# ============================================================
-# ✅ ACTUATOR — exposes /actuator/health and /actuator/info
-# ============================================================
 management:
   endpoints:
     web:
       exposure:
-        include: health,info
+        include: health,info,kafka,circuitbreakers,retries
       base-path: /actuator
   endpoint:
     health:
       show-details: always
       probes:
         enabled: true
+  health:
+    kafka:
+      enabled: true
+    mongo:
+      enabled: true
   info:
     env:
       enabled: true
 
-# ==================== Logging ====================
 logging:
   level:
     com.property.notification: ${LOG_LEVEL_NOTIFICATION:DEBUG}
+    org.springframework.kafka: INFO
+    org.apache.kafka: WARN

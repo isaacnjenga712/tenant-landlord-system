@@ -2,70 +2,103 @@ spring:
   application:
     name: property-management-service
 
-  # ==================== DATASOURCE ====================
   datasource:
-    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/property_service_db}
-    username: ${SPRING_DATASOURCE_USERNAME:postgres}
-    password: ${SPRING_DATASOURCE_PASSWORD:apex123}
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://postgres:5432/rentflow}
+    username: ${SPRING_DATASOURCE_USERNAME:rentflow}
+    password: ${SPRING_DATASOURCE_PASSWORD:rentflow}
     driver-class-name: org.postgresql.Driver
+    hikari:
+      maximum-pool-size: 10
+      minimum-idle: 5
 
-  # ==================== JPA / HIBERNATE ====================
   jpa:
     hibernate:
       ddl-auto: ${SPRING_JPA_HIBERNATE_DDL_AUTO:update}
-    show-sql: true
+    show-sql: false
     properties:
       hibernate:
         dialect: org.hibernate.dialect.PostgreSQLDialect
         format_sql: true
 
-  # ==================== KAFKA ====================
+  flyway:
+    enabled: ${SPRING_FLYWAY_ENABLED:false}
+    table: flyway_schema_history_property
+    baseline-on-migrate: true
+    locations: classpath:db/migration
+
   kafka:
-    bootstrap-servers: ${SPRING_KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
-    listener:
-      auto-startup: ${SPRING_KAFKA_LISTENER_AUTO_STARTUP:true}
+    bootstrap-servers: ${SPRING_KAFKA_BOOTSTRAP_SERVERS:kafka:29092}
     producer:
       key-serializer: org.apache.kafka.common.serialization.StringSerializer
       value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
+      acks: all
+      retries: 10
       properties:
         enable.idempotence: true
-        acks: all
-        retries: 10
+        max.in.flight.requests.per.connection: 5
     consumer:
       group-id: property-service-group
+      auto-offset-reset: earliest
       key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
       value-deserializer: org.springframework.kafka.support.serializer.JsonDeserializer
+      enable-auto-commit: false
       properties:
         spring.json.trusted.packages: "*"
         spring.json.type.mapping: >-
           leaseCreated:com.platform.common.events.lease.LeaseCreatedEvent,
-          leaseTerminated:com.platform.common.events.lease.LeaseTerminatedEvent
-      enable-auto-commit: false
+          leaseTerminated:com.platform.common.events.lease.LeaseTerminatedEvent,
+          paymentConfirmed:com.platform.common.events.payment.PaymentConfirmedEvent,
+          maintenanceRequested:com.platform.common.events.maintenance.MaintenanceRequestedEvent
+    listener:
+      auto-startup: true
+      ack-mode: manual_immediate
+      missing-topics-fatal: false
+      concurrency: 3
 
-# ==================== SERVER ====================
+eureka:
+  client:
+    service-url:
+      defaultZone: ${EUREKA_CLIENT_SERVICEURL_DEFAULTZONE:http://eureka-server:8761/eureka/}
+    register-with-eureka: true
+    fetch-registry: true
+  instance:
+    prefer-ip-address: true
+    lease-renewal-interval-in-seconds: 10
+    lease-expiration-duration-in-seconds: 30
+
 server:
   port: ${SERVER_PORT:8082}
 
-# ============================================================
-# ✅ ACTUATOR — exposes /actuator/health and /actuator/info
-# ============================================================
+app:
+  kafka:
+    topics:
+      property-created: property.events.created
+      property-updated: property.events.updated
+      unit-occupied: unit.events.occupied
+      unit-vacated: unit.events.vacated
+      lease-created: lease.events.created
+      lease-terminated: lease.events.terminated
+
 management:
   endpoints:
     web:
       exposure:
-        include: health,info
+        include: health,info,kafka
       base-path: /actuator
   endpoint:
     health:
       show-details: always
       probes:
         enabled: true
+  health:
+    kafka:
+      enabled: true
   info:
     env:
       enabled: true
 
-# ==================== LOGGING ====================
 logging:
   level:
-    com.apex.propertyManagementService: ${LOG_LEVEL_PROPERTY:DEBUG}
+    com.apex.propertymanagementservice: ${LOG_LEVEL_PROPERTY:DEBUG}
     org.springframework.kafka: INFO
+    org.apache.kafka: WARN

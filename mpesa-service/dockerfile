@@ -1,26 +1,28 @@
-# ---- Build stage ----
-FROM maven:3.8.6-eclipse-temurin-17-alpine AS build
+# syntax=docker/dockerfile:1.4
 
-WORKDIR /app
+FROM maven:3.9-eclipse-temurin-17-alpine AS build
 
-# Copy pom.xml first to cache dependencies
+WORKDIR /build
+
+COPY settings.xml /root/.m2/settings.xml
+
 COPY pom.xml .
-RUN mvn dependency:go-offline -B
 
-# Copy source code
+RUN --mount=type=cache,target=/root/.m2 mvn -B -ntp dependency:go-offline -Dmaven.test.skip=true || true
+
 COPY src ./src
 
-# Package the application (skip tests)
-RUN mvn clean package -DskipTests
+RUN --mount=type=cache,target=/root/.m2 mvn -B -ntp clean package -Dmaven.test.skip=true
 
-# ---- Runtime stage ----
 FROM eclipse-temurin:17-jre-alpine
+
+RUN apk add --no-cache wget
 
 WORKDIR /app
 
-# Copy the JAR from the build stage
-COPY --from=build /app/target/*.jar app.jar
+COPY --from=build /build/target/*.jar app.jar
 
+<<<<<<< HEAD
 # Set default environment variables (can be overridden)
 ENV SPRING_PROFILES_ACTIVE=prod
 ENV DB_URL=jdbc:postgresql://postgres:5432/mpesa_db
@@ -32,9 +34,13 @@ ENV DARAJA_PASSKEY=REMOVED
 ENV DARAJA_SHORTCODE=174379
 ENV DARAJA_CALLBACK_URL=https://your-domain.com/api/payments/callback
 ENV DARAJA_BASE_URL=https://sandbox.safaricom.co.ke
+=======
+EXPOSE 8088
+>>>>>>> 1d1a611 (fix: kafka prod config - 29092, transactional, idempotency, auto-startup true)
 
-# Expose the application port
-EXPOSE 8080
+ENV JAVA_OPTS="-XX:+UseContainerSupport -XX:MaxRAMPercentage=75.0 -XX:+ExitOnOutOfMemoryError"
 
-# Run the JAR
-ENTRYPOINT ["java", "-jar", "app.jar"]
+HEALTHCHECK --interval=30s --timeout=5s --start-period=40s --retries=3 CMD wget --no-verbose --tries=1 --spider http://localhost:8088/actuator/health || exit 1
+
+ENTRYPOINT ["sh", "-c", "exec java $JAVA_OPTS -jar app.jar"]
+

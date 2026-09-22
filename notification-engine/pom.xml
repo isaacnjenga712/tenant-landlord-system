@@ -29,6 +29,13 @@
     </properties>
 
     <dependencies>
+        <!-- ================== COMMON MODULE ================== -->
+        <dependency>
+            <groupId>com.platform</groupId>
+            <artifactId>common</artifactId>
+            <version>1.0.0-SNAPSHOT</version>
+        </dependency>
+
         <!-- ================== Spring Boot Starters ================== -->
         <dependency>
             <groupId>org.springframework.boot</groupId>

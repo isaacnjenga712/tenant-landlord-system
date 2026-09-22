@@ -8,7 +8,7 @@ spring:
   datasource:
     url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://postgres:5432/rentflow}
     username: ${SPRING_DATASOURCE_USERNAME:rentflow}
-    password: ${SPRING_DATASOURCE_PASSWORD:rentflow}
+    password: ${SPRING_DATASOURCE_PASSWORD:DB_PASSWORD}
     driver-class-name: org.postgresql.Driver
 
   jpa:
@@ -31,26 +31,24 @@ spring:
     producer:
       key-serializer: org.apache.kafka.common.serialization.StringSerializer
       value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
-      acks: all
-      retries: 10
       properties:
         enable.idempotence: true
+        acks: all
+        retries: 10
         max.in.flight.requests.per.connection: 5
+        spring.json.add.type.headers: false
     consumer:
-      group-id: maintenance-group
+      group-id: ${SPRING_KAFKA_CONSUMER_GROUP_ID:maintenance-group}
       auto-offset-reset: earliest
+      enable-auto-commit: false
       key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
       value-deserializer: org.springframework.kafka.support.serializer.JsonDeserializer
-      enable-auto-commit: false
       properties:
-        spring.json.trusted.packages: "*"
-        spring.json.value.default.type: com.platform.common.events.lease.LeaseCreatedEvent
-        spring.json.type.mapping: >-
-          leaseCreated:com.platform.common.events.lease.LeaseCreatedEvent,
-          leaseTerminated:com.platform.common.events.lease.LeaseTerminatedEvent,
-          maintenanceRequested:com.platform.common.events.maintenance.MaintenanceRequestedEvent
+        spring.json.trusted.packages: "com.platform.common.events.*,com.apex.*"
+        spring.json.use.type.headers: false
+        spring.json.type.mapping: "leaseCreated:com.platform.common.events.lease.LeaseCreatedEvent,leaseTerminated:com.platform.common.events.lease.LeaseTerminatedEvent,leaseCompensationRequired:com.platform.common.events.lease.LeaseCompensationRequiredEvent,ticketCreated:com.platform.common.events.maintenance.TicketCreatedEvent,ticketResolved:com.platform.common.events.maintenance.TicketResolvedEvent"
     listener:
-      auto-startup: true
+      auto-startup: ${SPRING_KAFKA_LISTENER_AUTO_STARTUP:true}
       ack-mode: manual_immediate
       missing-topics-fatal: false
       concurrency: 3
@@ -77,22 +75,20 @@ management:
       show-details: always
       probes:
         enabled: true
-  health:
-    kafka:
-      enabled: true
   info:
     env:
       enabled: true
 
 logging:
   level:
-    com.apex.maintenanceTicketService: DEBUG
+    com.apex.maintenanceTicketService: ${LOG_LEVEL_MAINTENANCE:DEBUG}
     org.springframework.kafka: INFO
     org.apache.kafka: WARN
 
 app:
   kafka:
     topics:
-      maintenance-requested: maintenance.events.requested
-      maintenance-resolved: maintenance.events.resolved
+      ticket-created: maintenance.events.created
+      ticket-resolved: maintenance.events.resolved
       lease-created: lease.events.created
+      lease-terminated: lease.events.terminated

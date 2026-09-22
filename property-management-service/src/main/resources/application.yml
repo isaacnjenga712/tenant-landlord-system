@@ -1,3 +1,6 @@
+server:
+  port: ${SERVER_PORT:8082}
+
 spring:
   application:
     name: property-management-service
@@ -5,11 +8,8 @@ spring:
   datasource:
     url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://postgres:5432/rentflow}
     username: ${SPRING_DATASOURCE_USERNAME:rentflow}
-    password: ${SPRING_DATASOURCE_PASSWORD:rentflow}
+    password: ${SPRING_DATASOURCE_PASSWORD:DB_PASSWORD}
     driver-class-name: org.postgresql.Driver
-    hikari:
-      maximum-pool-size: 10
-      minimum-idle: 5
 
   jpa:
     hibernate:
@@ -20,40 +20,32 @@ spring:
         dialect: org.hibernate.dialect.PostgreSQLDialect
         format_sql: true
 
-  flyway:
-    enabled: ${SPRING_FLYWAY_ENABLED:false}
-    table: flyway_schema_history_property
-    baseline-on-migrate: true
-    locations: classpath:db/migration
-
   kafka:
     bootstrap-servers: ${SPRING_KAFKA_BOOTSTRAP_SERVERS:kafka:29092}
+    listener:
+      auto-startup: ${SPRING_KAFKA_LISTENER_AUTO_STARTUP:true}
+      ack-mode: manual_immediate
+      concurrency: 3
+      missing-topics-fatal: false
     producer:
       key-serializer: org.apache.kafka.common.serialization.StringSerializer
       value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
-      acks: all
-      retries: 10
       properties:
         enable.idempotence: true
+        acks: all
+        retries: 10
         max.in.flight.requests.per.connection: 5
+        spring.json.add.type.headers: false
     consumer:
-      group-id: property-service-group
+      group-id: ${SPRING_KAFKA_CONSUMER_GROUP_ID:property-service-group}
       auto-offset-reset: earliest
+      enable-auto-commit: false
       key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
       value-deserializer: org.springframework.kafka.support.serializer.JsonDeserializer
-      enable-auto-commit: false
       properties:
-        spring.json.trusted.packages: "*"
-        spring.json.type.mapping: >-
-          leaseCreated:com.platform.common.events.lease.LeaseCreatedEvent,
-          leaseTerminated:com.platform.common.events.lease.LeaseTerminatedEvent,
-          paymentConfirmed:com.platform.common.events.payment.PaymentConfirmedEvent,
-          maintenanceRequested:com.platform.common.events.maintenance.MaintenanceRequestedEvent
-    listener:
-      auto-startup: true
-      ack-mode: manual_immediate
-      missing-topics-fatal: false
-      concurrency: 3
+        spring.json.trusted.packages: "com.platform.common.events.*,com.apex.*"
+        spring.json.use.type.headers: false
+        spring.json.type.mapping: "leaseCreated:com.platform.common.events.lease.LeaseCreatedEvent,leaseTerminated:com.platform.common.events.lease.LeaseTerminatedEvent,leaseCompensationRequired:com.platform.common.events.lease.LeaseCompensationRequiredEvent,propertyRegistered:com.platform.common.events.property.PropertyRegisteredEvent,propertyUpdated:com.platform.common.events.property.PropertyUpdatedEvent"
 
 eureka:
   client:
@@ -66,19 +58,6 @@ eureka:
     lease-renewal-interval-in-seconds: 10
     lease-expiration-duration-in-seconds: 30
 
-server:
-  port: ${SERVER_PORT:8082}
-
-app:
-  kafka:
-    topics:
-      property-created: property.events.created
-      property-updated: property.events.updated
-      unit-occupied: unit.events.occupied
-      unit-vacated: unit.events.vacated
-      lease-created: lease.events.created
-      lease-terminated: lease.events.terminated
-
 management:
   endpoints:
     web:
@@ -90,15 +69,20 @@ management:
       show-details: always
       probes:
         enabled: true
-  health:
-    kafka:
-      enabled: true
   info:
     env:
       enabled: true
 
 logging:
   level:
-    com.apex.propertymanagementservice: ${LOG_LEVEL_PROPERTY:DEBUG}
+    com.apex.propertyManagementService: ${LOG_LEVEL_PROPERTY:DEBUG}
     org.springframework.kafka: INFO
-    org.apache.kafka: WARN
+
+app:
+  kafka:
+    topics:
+      property-registered: property.events.registered
+      property-updated: property.events.updated
+      lease-created: lease.events.created
+      lease-terminated: lease.events.terminated
+      lease-compensation-required: lease.events.compensation.required

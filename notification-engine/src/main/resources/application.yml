@@ -32,30 +32,24 @@ spring:
     producer:
       key-serializer: org.apache.kafka.common.serialization.StringSerializer
       value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
-      acks: all
-      retries: 3
       properties:
+        acks: all
+        retries: 3
         enable.idempotence: true
+        spring.json.add.type.headers: false
     consumer:
-      group-id: notification-engine-group
+      group-id: ${SPRING_KAFKA_CONSUMER_GROUP_ID:notification-engine-group}
       auto-offset-reset: earliest
+      enable-auto-commit: false
       key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
       value-deserializer: org.springframework.kafka.support.serializer.JsonDeserializer
-      enable-auto-commit: false
       properties:
-        spring.json.trusted.packages: "*"
+        spring.json.trusted.packages: "com.platform.common.events.*,com.property.notification.*"
         spring.json.use.type.headers: false
         spring.json.value.default.type: java.util.Map
-        spring.json.type.mapping: >-
-          payment:com.property.notification.dto.PaymentEventDto,
-          maintenance:com.property.notification.dto.MaintenanceEventDto,
-          leaseCreated:com.platform.common.events.lease.LeaseCreatedEvent,
-          paymentConfirmed:com.platform.common.events.payment.PaymentConfirmedEvent,
-          maintenanceRequested:com.platform.common.events.maintenance.MaintenanceRequestedEvent,
-          maintenanceResolved:com.platform.common.events.maintenance.MaintenanceResolvedEvent,
-          stkPushResult:com.platform.common.events.mpesa.StkPushResultEvent
+        spring.json.type.mapping: "payment:com.property.notification.dto.PaymentEventDto,maintenance:com.property.notification.dto.MaintenanceEventDto,leaseCreated:com.platform.common.events.lease.LeaseCreatedEvent,leaseTerminated:com.platform.common.events.lease.LeaseTerminatedEvent,leaseCompensationRequired:com.platform.common.events.lease.LeaseCompensationRequiredEvent,ticketCreated:com.platform.common.events.maintenance.TicketCreatedEvent,ticketResolved:com.platform.common.events.maintenance.TicketResolvedEvent,paymentReceived:com.platform.common.events.billing.PaymentReceivedEvent,paymentFailed:com.platform.common.events.billing.PaymentFailedEvent,propertyRegistered:com.platform.common.events.property.PropertyRegisteredEvent,propertyUpdated:com.platform.common.events.property.PropertyUpdatedEvent"
     listener:
-      auto-startup: true
+      auto-startup: ${SPRING_KAFKA_LISTENER_AUTO_STARTUP:true}
       ack-mode: manual_immediate
       missing-topics-fatal: false
       concurrency: 5
@@ -79,13 +73,15 @@ app:
     topics:
       payment: payment-events
       maintenance: maintenance-events
-      payment-confirmed: payment.events.confirmed
-      payment-due: payment.events.due
+      payment-received: payment.events.received
+      payment-failed: payment.events.failed
       lease-created: lease.events.created
       lease-terminated: lease.events.terminated
-      maintenance-requested: maintenance.events.requested
-      maintenance-resolved: maintenance.events.resolved
-      mpesa-stk-result: mpesa.events.stk.result
+      lease-compensation-required: lease.events.compensation.required
+      ticket-created: maintenance.events.created
+      ticket-resolved: maintenance.events.resolved
+      property-registered: property.events.registered
+      property-updated: property.events.updated
       notification-dlq: notification.events.dlq
 
 sms:
@@ -130,9 +126,11 @@ management:
       probes:
         enabled: true
   health:
-    kafka:
-      enabled: true
+    mail:
+      enabled: false
     mongo:
+      enabled: true
+    kafka:
       enabled: true
   info:
     env:

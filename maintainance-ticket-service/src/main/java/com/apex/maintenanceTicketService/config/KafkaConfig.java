@@ -1,4 +1,4 @@
-package com.apex.module.lease.config;
+package com.apex.maintenanceTicketService.config;
 
 import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.apache.kafka.clients.producer.ProducerConfig;
@@ -24,7 +24,7 @@ public class KafkaConfig {
     @Value("${spring.kafka.bootstrap-servers:kafka:29092}")
     private String bootstrapServers;
 
-    @Value("${spring.kafka.consumer.group-id:lease-service-group}")
+    @Value("${spring.kafka.consumer.group-id:maintenance-group}")
     private String groupId;
 
     @Value("${spring.kafka.consumer.properties.spring.json.type.mapping:}")
@@ -60,13 +60,11 @@ public class KafkaConfig {
         props.put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "earliest");
         props.put(ConsumerConfig.ENABLE_AUTO_COMMIT_CONFIG, false);
 
-        // Use ErrorHandlingDeserializer so a bad message doesn't crash the listener
         props.put(ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG, ErrorHandlingDeserializer.class);
         props.put(ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG, ErrorHandlingDeserializer.class);
         props.put(ErrorHandlingDeserializer.KEY_DESERIALIZER_CLASS, StringDeserializer.class);
         props.put(ErrorHandlingDeserializer.VALUE_DESERIALIZER_CLASS, JsonDeserializer.class);
 
-        // Nail down the JSON deserializer
         props.put(JsonDeserializer.TRUSTED_PACKAGES, trustedPackages);
         props.put(JsonDeserializer.USE_TYPE_INFO_HEADERS, false);
         if (typeMapping != null && !typeMapping.isBlank()) {
@@ -81,8 +79,6 @@ public class KafkaConfig {
                 new ConcurrentKafkaListenerContainerFactory<>();
         factory.setConsumerFactory(consumerFactory());
         factory.setConcurrency(3);
-
-        // Retry 3 times with 2s backoff, then give up (message stays in Kafka)
         factory.setCommonErrorHandler(new DefaultErrorHandler(
                 new FixedBackOff(2000L, 3L)
         ));

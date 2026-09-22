@@ -1,4 +1,4 @@
-package com.apex.PaymentService.config;
+package com.property.notification.config;
 
 import org.apache.kafka.clients.admin.NewTopic;
 import org.apache.kafka.clients.consumer.ConsumerConfig;
@@ -29,10 +29,10 @@ public class KafkaConfig {
     @Value("${spring.kafka.bootstrap-servers:kafka:29092}")
     private String bootstrapServers;
 
-    @Value("${spring.kafka.consumer.group-id:payment-service}")
+    @Value("${spring.kafka.consumer.group-id:notification-engine-group}")
     private String consumerGroupId;
 
-    @Value("${spring.kafka.consumer.properties.spring.json.trusted.packages:com.platform.common.events.*,com.apex.*}")
+    @Value("${spring.kafka.consumer.properties.spring.json.trusted.packages:com.platform.common.events.*,com.property.notification.*,com.apex.*}")
     private String trustedPackages;
 
     @Value("${spring.kafka.consumer.properties.spring.json.type.mapping:}")
@@ -53,9 +53,6 @@ public class KafkaConfig {
         props.put(ProducerConfig.RETRIES_CONFIG, 3);
         props.put(ProducerConfig.ENABLE_IDEMPOTENCE_CONFIG, true);
         props.put(ProducerConfig.MAX_IN_FLIGHT_REQUESTS_PER_CONNECTION, 5);
-        props.put(ProducerConfig.LINGER_MS_CONFIG, 10);
-        props.put(ProducerConfig.BATCH_SIZE_CONFIG, 16_384);
-        props.put(ProducerConfig.COMPRESSION_TYPE_CONFIG, "snappy");
 
         props.put(JsonSerializer.ADD_TYPE_INFO_HEADERS, false);
 
@@ -102,12 +99,12 @@ public class KafkaConfig {
         ConcurrentKafkaListenerContainerFactory<String, Object> factory =
                 new ConcurrentKafkaListenerContainerFactory<>();
         factory.setConsumerFactory(consumerFactory);
-        factory.setConcurrency(3);
+        factory.setConcurrency(5);
         factory.getContainerProperties().setAckMode(ContainerProperties.AckMode.MANUAL_IMMEDIATE);
 
         DefaultErrorHandler errorHandler = new DefaultErrorHandler(
                 (record, exception) -> System.err.printf(
-                        "Skipping record after retries: key=%s, topic=%s, err=%s%n",
+                        "Notification DLQ candidate: key=%s, topic=%s, err=%s%n",
                         record.key(), record.topic(), exception.getMessage()),
                 new FixedBackOff(2000L, 3L)
         );
@@ -117,45 +114,16 @@ public class KafkaConfig {
     }
 
     // ============================================================
-    // TOPICS
+    // TOPICS — notification engine consumes from many sources,
+    //          only declares its own DLQ and admin topics here.
     // ============================================================
 
     @Bean
-    public NewTopic paymentInitiatedTopic() {
-        return TopicBuilder.name("payment.events.initiated")
-                .partitions(3)
+    public NewTopic notificationDlqTopic() {
+        return TopicBuilder.name("notification.events.dlq")
+                .partitions(1)
                 .replicas(1)
-                .config("retention.ms", String.valueOf(7L * 24 * 60 * 60 * 1000))
-                .config("cleanup.policy", "delete")
-                .build();
-    }
-
-    @Bean
-    public NewTopic paymentReceivedTopic() {
-        return TopicBuilder.name("payment.events.received")
-                .partitions(3)
-                .replicas(1)
-                .config("retention.ms", String.valueOf(7L * 24 * 60 * 60 * 1000))
-                .config("cleanup.policy", "delete")
-                .build();
-    }
-
-    @Bean
-    public NewTopic paymentFailedTopic() {
-        return TopicBuilder.name("payment.events.failed")
-                .partitions(3)
-                .replicas(1)
-                .config("retention.ms", String.valueOf(7L * 24 * 60 * 60 * 1000))
-                .config("cleanup.policy", "delete")
-                .build();
-    }
-
-    @Bean
-    public NewTopic mpesaStkResultTopic() {
-        return TopicBuilder.name("mpesa.events.stk.result")
-                .partitions(3)
-                .replicas(1)
-                .config("retention.ms", String.valueOf(7L * 24 * 60 * 60 * 1000))
+                .config("retention.ms", String.valueOf(14L * 24 * 60 * 60 * 1000))
                 .config("cleanup.policy", "delete")
                 .build();
     }

@@ -1,4 +1,4 @@
-package com.apex.PaymentService.config;
+package com.apex.mpesa.config;
 
 import org.apache.kafka.clients.admin.NewTopic;
 import org.apache.kafka.clients.consumer.ConsumerConfig;
@@ -29,7 +29,7 @@ public class KafkaConfig {
     @Value("${spring.kafka.bootstrap-servers:kafka:29092}")
     private String bootstrapServers;
 
-    @Value("${spring.kafka.consumer.group-id:payment-service}")
+    @Value("${spring.kafka.consumer.group-id:mpesa-service-group}")
     private String consumerGroupId;
 
     @Value("${spring.kafka.consumer.properties.spring.json.trusted.packages:com.platform.common.events.*,com.apex.*}")
@@ -125,28 +125,14 @@ public class KafkaConfig {
         return TopicBuilder.name("payment.events.initiated")
                 .partitions(3)
                 .replicas(1)
-                .config("retention.ms", String.valueOf(7L * 24 * 60 * 60 * 1000))
-                .config("cleanup.policy", "delete")
                 .build();
     }
 
     @Bean
-    public NewTopic paymentReceivedTopic() {
-        return TopicBuilder.name("payment.events.received")
+    public NewTopic mpesaStkRequestedTopic() {
+        return TopicBuilder.name("mpesa.events.stk.requested")
                 .partitions(3)
                 .replicas(1)
-                .config("retention.ms", String.valueOf(7L * 24 * 60 * 60 * 1000))
-                .config("cleanup.policy", "delete")
-                .build();
-    }
-
-    @Bean
-    public NewTopic paymentFailedTopic() {
-        return TopicBuilder.name("payment.events.failed")
-                .partitions(3)
-                .replicas(1)
-                .config("retention.ms", String.valueOf(7L * 24 * 60 * 60 * 1000))
-                .config("cleanup.policy", "delete")
                 .build();
     }
 
@@ -155,8 +141,6 @@ public class KafkaConfig {
         return TopicBuilder.name("mpesa.events.stk.result")
                 .partitions(3)
                 .replicas(1)
-                .config("retention.ms", String.valueOf(7L * 24 * 60 * 60 * 1000))
-                .config("cleanup.policy", "delete")
                 .build();
     }
 

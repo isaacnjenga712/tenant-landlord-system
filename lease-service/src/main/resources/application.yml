@@ -8,7 +8,7 @@ spring:
   datasource:
     url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://postgres:5432/rentflow}
     username: ${SPRING_DATASOURCE_USERNAME:rentflow}
-    password: ${SPRING_DATASOURCE_PASSWORD:rentflow}
+    password: ${SPRING_DATASOURCE_PASSWORD:DB_PASSWORD}
     driver-class-name: org.postgresql.Driver
 
   jpa:
@@ -33,21 +33,26 @@ spring:
     producer:
       key-serializer: org.apache.kafka.common.serialization.StringSerializer
       value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
-      acks: all
-      retries: 3
       properties:
         enable.idempotence: true
+        acks: all
+        retries: 3
         max.in.flight.requests.per.connection: 5
+        spring.json.add.type.headers: false
     consumer:
-      group-id: lease-service-group
+      group-id: ${SPRING_KAFKA_CONSUMER_GROUP_ID:lease-service-group}
       auto-offset-reset: ${SPRING_KAFKA_CONSUMER_AUTO_OFFSET_RESET:earliest}
+      enable-auto-commit: false
       key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
       value-deserializer: org.springframework.kafka.support.serializer.JsonDeserializer
       properties:
-        spring.json.trusted.packages: "*"
-        spring.json.value.default.type: java.util.Map
+        spring.json.trusted.packages: "com.platform.common.events.*,com.apex.*"
+        spring.json.use.type.headers: false
+        spring.json.type.mapping: "leaseCreated:com.platform.common.events.lease.LeaseCreatedEvent,leaseTerminated:com.platform.common.events.lease.LeaseTerminatedEvent,leaseCompensationRequired:com.platform.common.events.lease.LeaseCompensationRequiredEvent,ticketCreated:com.platform.common.events.maintenance.TicketCreatedEvent,ticketResolved:com.platform.common.events.maintenance.TicketResolvedEvent,paymentReceived:com.platform.common.events.billing.PaymentReceivedEvent,paymentFailed:com.platform.common.events.billing.PaymentFailedEvent"
     listener:
+      auto-startup: ${SPRING_KAFKA_LISTENER_AUTO_STARTUP:true}
       ack-mode: manual_immediate
+      concurrency: 3
       missing-topics-fatal: false
 
 eureka:
@@ -72,9 +77,6 @@ management:
       show-details: always
       probes:
         enabled: true
-  health:
-    kafka:
-      enabled: true
   info:
     env:
       enabled: true
@@ -87,11 +89,13 @@ logging:
   pattern:
     console: "%d{yyyy-MM-dd HH:mm:ss} - %msg%n"
 
-# Custom topics for your domain
 app:
   kafka:
     topics:
       lease-created: lease.events.created
       lease-terminated: lease.events.terminated
-      payment-due: payment.events.due
+      lease-compensation-required: lease.events.compensation.required
+      ticket-created: maintenance.events.created
+      ticket-resolved: maintenance.events.resolved
       payment-received: payment.events.received
+      payment-failed: payment.events.failed

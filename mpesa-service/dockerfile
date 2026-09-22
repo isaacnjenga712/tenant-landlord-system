@@ -1,42 +1,43 @@
+
 # syntax=docker/dockerfile:1.4
 
 FROM maven:3.9-eclipse-temurin-17-alpine AS build
 
+
+
 WORKDIR /build
 
+
+
 COPY settings.xml /root/.m2/settings.xml
+
+
 
 COPY pom.xml .
 
 RUN --mount=type=cache,target=/root/.m2 mvn -B -ntp dependency:go-offline -Dmaven.test.skip=true || true
 
+
+
 COPY src ./src
 
 RUN --mount=type=cache,target=/root/.m2 mvn -B -ntp clean package -Dmaven.test.skip=true
 
-FROM eclipse-temurin:17-jre-alpine
 
-RUN apk add --no-cache wget
+
+FROM eclipse-temurin:17-jre
+
+
+
+RUN apt-get update && apt-get install -y --no-install-recommends wget && rm -rf /var/lib/apt/lists/*
+
+
 
 WORKDIR /app
 
 COPY --from=build /build/target/*.jar app.jar
 
-<<<<<<< HEAD
-# Set default environment variables (can be overridden)
-ENV SPRING_PROFILES_ACTIVE=prod
-ENV DB_URL=jdbc:postgresql://postgres:5432/mpesa_db
-ENV DB_USERNAME=postgres
-ENV DB_PASSWORD=apex123
-ENV DARAJA_CONSUMER_KEY=REMOVED
-ENV DARAJA_CONSUMER_SECRET=REMOVED
-ENV DARAJA_PASSKEY=REMOVED
-ENV DARAJA_SHORTCODE=174379
-ENV DARAJA_CALLBACK_URL=https://your-domain.com/api/payments/callback
-ENV DARAJA_BASE_URL=https://sandbox.safaricom.co.ke
-=======
 EXPOSE 8088
->>>>>>> 1d1a611 (fix: kafka prod config - 29092, transactional, idempotency, auto-startup true)
 
 ENV JAVA_OPTS="-XX:+UseContainerSupport -XX:MaxRAMPercentage=75.0 -XX:+ExitOnOutOfMemoryError"
 

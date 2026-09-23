@@ -99,6 +99,20 @@
             <artifactId>lombok</artifactId>
             <optional>true</optional>
         </dependency>
+        
+         <!-- Distributed tracing (Brave + Zipkin) -->
+        <dependency>
+            <groupId>io.micrometer</groupId>
+            <artifactId>micrometer-tracing-bridge-brave</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>io.micrometer</groupId>
+            <artifactId>micrometer-tracing</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>io.zipkin.reporter2</groupId>
+            <artifactId>zipkin-reporter-brave</artifactId>
+        </dependency>
 
         <!-- ================== In-memory DB (tests) ================== -->
         <dependency>
@@ -135,6 +149,14 @@
             <artifactId>awaitility</artifactId>
             <scope>test</scope>
         </dependency>
+            <dependency>
+
+            <groupId>io.micrometer</groupId>
+
+            <artifactId>micrometer-registry-prometheus</artifactId>
+
+        </dependency>
+
     </dependencies>
 
     <dependencyManagement>

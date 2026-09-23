@@ -118,13 +118,15 @@ management:
   endpoints:
     web:
       exposure:
-        include: health,info,kafka,circuitbreakers,retries
+        include: health,info,prometheus,metrics,kafka,circuitbreakers,retries
       base-path: /actuator
   endpoint:
     health:
       show-details: always
       probes:
         enabled: true
+    prometheus:
+      enabled: true
   health:
     mail:
       enabled: false
@@ -132,6 +134,29 @@ management:
       enabled: true
     kafka:
       enabled: true
+  metrics:
+    tags:
+      application: ${spring.application.name}
+      env: ${SPRING_PROFILES_ACTIVE:default}
+    distribution:
+      percentiles-histogram:
+        http.server.requests: true
+      percentiles:
+        http.server.requests: 0.5, 0.95, 0.99
+      slo:
+        http.server.requests: 100ms, 500ms, 1s, 5s
+  prometheus:
+    metrics:
+      export:
+        enabled: true
+  tracing:
+    sampling:
+      probability: 1.0
+    propagation:
+      type: b3
+  zipkin:
+    tracing:
+      endpoint: ${ZIPKIN_URL:http://zipkin:9411/api/v2/spans}
   info:
     env:
       enabled: true
@@ -141,3 +166,5 @@ logging:
     com.property.notification: ${LOG_LEVEL_NOTIFICATION:DEBUG}
     org.springframework.kafka: INFO
     org.apache.kafka: WARN
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss} [${spring.application.name},%X{traceId:-},%X{spanId:-}] - %msg%n"

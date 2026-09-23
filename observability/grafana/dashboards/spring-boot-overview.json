@@ -1,0 +1,267 @@
+
+{
+
+  "annotations": { "list": [] },
+
+  "editable": true,
+
+  "fiscalYearStartMonth": 0,
+
+  "graphTooltip": 1,
+
+  "id": null,
+
+  "links": [],
+
+  "panels": [
+
+    {
+
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+
+      "fieldConfig": { "defaults": { "unit": "short" }, "overrides": [] },
+
+      "gridPos": { "h": 5, "w": 6, "x": 0, "y": 0 },
+
+      "id": 1,
+
+      "options": { "colorMode": "value", "graphMode": "area", "reduceOptions": { "calcs": ["lastNotNull"] } },
+
+      "title": "Services UP",
+
+      "type": "stat",
+
+      "targets": [ { "expr": "count(up{job=/"spring-microservices/"} == 1)", "refId": "A" } ]
+
+    },
+
+    {
+
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+
+      "fieldConfig": { "defaults": { "unit": "reqps" }, "overrides": [] },
+
+      "gridPos": { "h": 5, "w": 6, "x": 6, "y": 0 },
+
+      "id": 2,
+
+      "options": { "colorMode": "value", "graphMode": "area", "reduceOptions": { "calcs": ["lastNotNull"] } },
+
+      "title": "Total RPS",
+
+      "type": "stat",
+
+      "targets": [ { "expr": "sum(rate(http_server_requests_seconds_count[1m]))", "refId": "A" } ]
+
+    },
+
+    {
+
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+
+      "fieldConfig": { "defaults": { "unit": "s" }, "overrides": [] },
+
+      "gridPos": { "h": 5, "w": 6, "x": 12, "y": 0 },
+
+      "id": 3,
+
+      "options": { "colorMode": "value", "graphMode": "area", "reduceOptions": { "calcs": ["lastNotNull"] } },
+
+      "title": "P95 Latency",
+
+      "type": "stat",
+
+      "targets": [ { "expr": "histogram_quantile(0.95, sum(rate(http_server_requests_seconds_bucket[5m])) by (le))", "refId": "A" } ]
+
+    },
+
+    {
+
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+
+      "fieldConfig": { "defaults": { "unit": "percent" }, "overrides": [] },
+
+      "gridPos": { "h": 5, "w": 6, "x": 18, "y": 0 },
+
+      "id": 4,
+
+      "options": { "colorMode": "value", "graphMode": "area", "reduceOptions": { "calcs": ["lastNotNull"] } },
+
+      "title": "Error Rate",
+
+      "type": "stat",
+
+      "targets": [ { "expr": "sum(rate(http_server_requests_seconds_count{status=~/"5../"}[5m])) / sum(rate(http_server_requests_seconds_count[5m])) * 100", "refId": "A" } ]
+
+    },
+
+    {
+
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+
+      "fieldConfig": { "defaults": { "unit": "reqps" }, "overrides": [] },
+
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 5 },
+
+      "id": 5,
+
+      "options": { "legend": { "displayMode": "table", "placement": "bottom" } },
+
+      "title": "Requests/sec by Service",
+
+      "type": "timeseries",
+
+      "targets": [ { "expr": "sum(rate(http_server_requests_seconds_count[1m])) by (application)", "legendFormat": "{{application}}", "refId": "A" } ]
+
+    },
+
+    {
+
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+
+      "fieldConfig": { "defaults": { "unit": "s" }, "overrides": [] },
+
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 5 },
+
+      "id": 6,
+
+      "options": { "legend": { "displayMode": "table", "placement": "bottom" } },
+
+      "title": "P95 / P99 Latency by Service",
+
+      "type": "timeseries",
+
+      "targets": [
+
+        { "expr": "histogram_quantile(0.95, sum(rate(http_server_requests_seconds_bucket[5m])) by (le, application))", "legendFormat": "p95 {{application}}", "refId": "A" },
+
+        { "expr": "histogram_quantile(0.99, sum(rate(http_server_requests_seconds_bucket[5m])) by (le, application))", "legendFormat": "p99 {{application}}", "refId": "B" }
+
+      ]
+
+    },
+
+    {
+
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+
+      "fieldConfig": { "defaults": { "unit": "bytes" }, "overrides": [] },
+
+      "gridPos": { "h": 8, "w": 8, "x": 0, "y": 13 },
+
+      "id": 7,
+
+      "options": { "legend": { "displayMode": "table", "placement": "bottom" } },
+
+      "title": "JVM Heap Used by Service",
+
+      "type": "timeseries",
+
+      "targets": [ { "expr": "sum(jvm_memory_used_bytes{area=/"heap/"}) by (application)", "legendFormat": "{{application}}", "refId": "A" } ]
+
+    },
+
+    {
+
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+
+      "fieldConfig": { "defaults": { "unit": "short" }, "overrides": [] },
+
+      "gridPos": { "h": 8, "w": 8, "x": 8, "y": 13 },
+
+      "id": 8,
+
+      "options": { "legend": { "displayMode": "table", "placement": "bottom" } },
+
+      "title": "JVM Threads by Service",
+
+      "type": "timeseries",
+
+      "targets": [ { "expr": "sum(jvm_threads_live_threads) by (application)", "legendFormat": "{{application}}", "refId": "A" } ]
+
+    },
+
+    {
+
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+
+      "fieldConfig": { "defaults": { "unit": "short" }, "overrides": [] },
+
+      "gridPos": { "h": 8, "w": 8, "x": 16, "y": 13 },
+
+      "id": 9,
+
+      "options": { "legend": { "displayMode": "table", "placement": "bottom" } },
+
+      "title": "Kafka Consumer Lag by Group",
+
+      "type": "timeseries",
+
+      "targets": [ { "expr": "sum(kafka_consumergroup_lag) by (consumergroup)", "legendFormat": "{{consumergroup}}", "refId": "A" } ]
+
+    },
+
+    {
+
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+
+      "fieldConfig": { "defaults": { "unit": "reqps" }, "overrides": [] },
+
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 21 },
+
+      "id": 10,
+
+      "options": { "legend": { "displayMode": "table", "placement": "bottom" } },
+
+      "title": "HTTP Status Codes (rate)",
+
+      "type": "timeseries",
+
+      "targets": [ { "expr": "sum(rate(http_server_requests_seconds_count[5m])) by (status)", "legendFormat": "{{status}}", "refId": "A" } ]
+
+    },
+
+    {
+
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+
+      "fieldConfig": { "defaults": { "unit": "s" }, "overrides": [] },
+
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 21 },
+
+      "id": 11,
+
+      "options": { "legend": { "displayMode": "table", "placement": "bottom" } },
+
+      "title": "Gateway Route Latency (p95)",
+
+      "type": "timeseries",
+
+      "targets": [ { "expr": "histogram_quantile(0.95, sum(rate(spring_cloud_gateway_requests_seconds_bucket[5m])) by (le, routeId))", "legendFormat": "{{routeId}}", "refId": "A" } ]
+
+    }
+
+  ],
+
+  "refresh": "10s",
+
+  "schemaVersion": 39,
+
+  "tags": ["spring-boot", "micrometer", "microservices"],
+
+  "time": { "from": "now-30m", "to": "now" },
+
+  "timepicker": {},
+
+  "timezone": "browser",
+
+  "title": "RentFlow — Microservices Overview",
+
+  "uid": "rentflow-overview",
+
+  "version": 1,
+
+  "weekStart": ""
+
+}
+

@@ -71,6 +71,20 @@
             <groupId>org.springframework.kafka</groupId>
             <artifactId>spring-kafka</artifactId>
         </dependency>
+        
+         <!-- Distributed tracing (Brave + Zipkin) -->
+        <dependency>
+            <groupId>io.micrometer</groupId>
+            <artifactId>micrometer-tracing-bridge-brave</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>io.micrometer</groupId>
+            <artifactId>micrometer-tracing</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>io.zipkin.reporter2</groupId>
+            <artifactId>zipkin-reporter-brave</artifactId>
+        </dependency>
 
         <!-- Flyway -->
         <dependency>
@@ -128,6 +142,14 @@
             <artifactId>spring-kafka-test</artifactId>
             <scope>test</scope>
         </dependency>
+            <dependency>
+
+            <groupId>io.micrometer</groupId>
+
+            <artifactId>micrometer-registry-prometheus</artifactId>
+
+        </dependency>
+
     </dependencies>
 
     <dependencyManagement>

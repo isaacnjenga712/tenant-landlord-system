@@ -13,6 +13,7 @@ services:
       - "8761:8761"
     environment:
       SPRING_PROFILES_ACTIVE: "docker"
+      ZIPKIN_URL: "http://zipkin:9411/api/v2/spans"
     healthcheck:
       test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8761/actuator/health"]
       interval: "15s"
@@ -97,6 +98,87 @@ services:
     restart: unless-stopped
 
   # ============================================================
+  # OBSERVABILITY
+  # ============================================================
+
+  prometheus:
+    image: prom/prometheus:v2.55.0
+    container_name: rentflow-prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - "./observability/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro"
+      - "prometheus_data:/prometheus"
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.path=/prometheus"
+      - "--storage.tsdb.retention.time=15d"
+      - "--web.enable-lifecycle"
+    networks:
+      - rentflow-network
+    restart: unless-stopped
+
+  grafana:
+    image: grafana/grafana:11.3.0
+    container_name: rentflow-grafana
+    ports:
+      - "3000:3000"
+    environment:
+      GF_SECURITY_ADMIN_USER: "admin"
+      GF_SECURITY_ADMIN_PASSWORD: "admin"
+      GF_USERS_ALLOW_SIGN_UP: "false"
+      GF_DASHBOARDS_DEFAULT_HOME_DASHBOARD_PATH: "/var/lib/grafana/dashboards/spring-boot-overview.json"
+    volumes:
+      - "./observability/grafana/provisioning:/etc/grafana/provisioning:ro"
+      - "./observability/grafana/dashboards:/var/lib/grafana/dashboards:ro"
+      - "grafana_data:/var/lib/grafana"
+    depends_on:
+      - prometheus
+    networks:
+      - rentflow-network
+    restart: unless-stopped
+
+  zipkin:
+    image: openzipkin/zipkin:3.4
+    container_name: rentflow-zipkin
+    ports:
+      - "9411:9411"
+    environment:
+      STORAGE_TYPE: "mem"
+      JAVA_OPTS: "-Xms256m -Xmx512m"
+    networks:
+      - rentflow-network
+    restart: unless-stopped
+
+  kafka-exporter:
+    image: danielqsj/kafka-exporter:v1.8.0
+    container_name: rentflow-kafka-exporter
+    command:
+      - "--kafka.server=kafka:29092"
+      - "--web.listen-address=:9308"
+    ports:
+      - "9308:9308"
+    depends_on:
+      - kafka
+    networks:
+      - rentflow-network
+    restart: unless-stopped
+
+  node-exporter:
+    image: prom/node-exporter:v1.8.2
+    container_name: rentflow-node-exporter
+    command:
+      - "--path.rootfs=/host"
+    pid: host
+    volumes:
+      - "/:/host:ro"
+    ports:
+      - "9100:9100"
+    networks:
+      - rentflow-network
+    restart: unless-stopped
+
+  # ============================================================
   # MICROSERVICES
   # ============================================================
 
@@ -116,6 +198,7 @@ services:
       JWT_ACCESS_SECRET: "${JWT_ACCESS_SECRET:-404E635266556A586E3272357538782F413F4428472B4B6250645367566B5970}"
       JWT_REFRESH_SECRET: "${JWT_REFRESH_SECRET:-607164346A576E5A7234753778217A25432A462D4A614E645267556B587032}"
       EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: "http://eureka-server:8761/eureka/"
+      ZIPKIN_URL: "http://zipkin:9411/api/v2/spans"
     depends_on:
       postgres:
         condition: "service_healthy"
@@ -143,6 +226,7 @@ services:
       SPRING_FLYWAY_ENABLED: "false"
       SPRING_KAFKA_BOOTSTRAP_SERVERS: "kafka:29092"
       EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: "http://eureka-server:8761/eureka/"
+      ZIPKIN_URL: "http://zipkin:9411/api/v2/spans"
     depends_on:
       postgres:
         condition: "service_healthy"
@@ -170,6 +254,7 @@ services:
       SPRING_FLYWAY_ENABLED: "false"
       SPRING_KAFKA_BOOTSTRAP_SERVERS: "kafka:29092"
       EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: "http://eureka-server:8761/eureka/"
+      ZIPKIN_URL: "http://zipkin:9411/api/v2/spans"
     depends_on:
       postgres:
         condition: "service_healthy"
@@ -197,6 +282,7 @@ services:
       SPRING_FLYWAY_ENABLED: "false"
       SPRING_KAFKA_BOOTSTRAP_SERVERS: "kafka:29092"
       EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: "http://eureka-server:8761/eureka/"
+      ZIPKIN_URL: "http://zipkin:9411/api/v2/spans"
     depends_on:
       postgres:
         condition: "service_healthy"
@@ -224,6 +310,7 @@ services:
       SPRING_FLYWAY_ENABLED: "false"
       SPRING_KAFKA_BOOTSTRAP_SERVERS: "kafka:29092"
       EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: "http://eureka-server:8761/eureka/"
+      ZIPKIN_URL: "http://zipkin:9411/api/v2/spans"
     depends_on:
       postgres:
         condition: "service_healthy"
@@ -249,12 +336,14 @@ services:
       SPRING_DATASOURCE_PASSWORD: "rentflow"
       SPRING_JPA_HIBERNATE_DDL_AUTO: "update"
       SPRING_FLYWAY_ENABLED: "false"
+      SPRING_KAFKA_BOOTSTRAP_SERVERS: "kafka:29092"
       DARAJA_CONSUMER_KEY: "${DARAJA_CONSUMER_KEY:-}"
       DARAJA_CONSUMER_SECRET: "${DARAJA_CONSUMER_SECRET:-}"
       DARAJA_PASSKEY: "${DARAJA_PASSKEY:-}"
       DARAJA_SHORTCODE: "${DARAJA_SHORTCODE:-174379}"
       DARAJA_CALLBACK_URL: "${DARAJA_CALLBACK_URL:-}"
       EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: "http://eureka-server:8761/eureka/"
+      ZIPKIN_URL: "http://zipkin:9411/api/v2/spans"
     depends_on:
       postgres:
         condition: "service_healthy"
@@ -280,6 +369,7 @@ services:
       SPRING_MAIL_USERNAME: "${SPRING_MAIL_USERNAME:-}"
       SPRING_MAIL_PASSWORD: "${SPRING_MAIL_PASSWORD:-}"
       EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: "http://eureka-server:8761/eureka/"
+      ZIPKIN_URL: "http://zipkin:9411/api/v2/spans"
     depends_on:
       mongodb:
         condition: "service_healthy"
@@ -308,6 +398,7 @@ services:
       REDIS_HOST: "redis"
       REDIS_PORT: "6379"
       EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: "http://eureka-server:8761/eureka/"
+      ZIPKIN_URL: "http://zipkin:9411/api/v2/spans"
     depends_on:
       redis:
         condition: "service_healthy"
@@ -340,6 +431,8 @@ volumes:
   pgdata:
   mongo_data:
   kafka_data:
+  prometheus_data:
+  grafana_data:
 
 networks:
   rentflow-network:

@@ -13,15 +13,19 @@ COPY settings.xml /root/.m2/settings.xml
 
 
 
-COPY pom.xml .
+COPY libs/ /tmp/libs/
 
-RUN --mount=type=cache,target=/root/.m2 mvn -B -ntp dependency:go-offline -Dmaven.test.skip=true || true
+
+
+COPY pom.xml .
 
 
 
 COPY src ./src
 
-RUN --mount=type=cache,target=/root/.m2 mvn -B -ntp clean package -Dmaven.test.skip=true
+
+
+RUN --mount=type=cache,target=/root/.m2 mvn -B -ntp install:install-file -Dfile=/tmp/libs/common-1.0.0-SNAPSHOT.jar -DgroupId=com.platform -DartifactId=common -Dversion=1.0.0-SNAPSHOT -Dpackaging=jar -DgeneratePom=true && mvn -B -ntp clean package -Dmaven.test.skip=true
 
 
 
@@ -43,5 +47,5 @@ ENV JAVA_OPTS="-XX:+UseContainerSupport -XX:MaxRAMPercentage=75.0 -XX:+ExitOnOut
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=40s --retries=3 CMD wget --no-verbose --tries=1 --spider http://localhost:8081/actuator/health || exit 1
 
-ENTRYPOINT ["sh", "-c", "exec java $JAVA_OPTS -jar app.jar"]
+ENTRYPOINT ["sh", "-c", "exec java -jar app.jar"]
 

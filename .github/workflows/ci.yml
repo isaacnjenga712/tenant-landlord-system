@@ -1,93 +1,35 @@
-
 name: CI Build and Test
 
-
-
 on:
-
   push:
-
     branches: [main, develop, "feat/**"]
-
   pull_request:
-
     branches: [main, develop]
 
-
-
-env:
-
-  JAVA_VERSION: "17"
-
-
-
 jobs:
-
   build-and-test:
-
     name: Build and test
-
     runs-on: ubuntu-latest
-
-    strategy:
-
-      fail-fast: false
-
-      matrix:
-
-        service:
-
-          - auth-service
-
-          - lease-service
-
-          - property-management-service
-
-          - payment-service
-
-          - mpesa-service
-
-          - notification-engine
-
-          - maintainance-ticket-service
-
-          - gateway-service
-
-          - eureka-server
-
     steps:
-
       - uses: actions/checkout@v4
 
-
-
       - uses: actions/setup-java@v4
-
         with:
-
           java-version: "17"
-
           distribution: temurin
-
           cache: maven
 
-
-
       - name: Install root POM
-
         run: mvn -B -ntp -N install -Dmaven.test.skip=true
 
-
-
       - name: Build and install common
-
         run: mvn -B -ntp -f common/pom.xml clean install -Dmaven.test.skip=true
 
-
-
-      - name: Build ${{ matrix.service }}
-
-        working-directory: ${{ matrix.service }}
-
-        run: mvn -B -ntp clean package -Dmaven.test.skip=true
-
+      - name: Build all services
+        run: |
+          for svc in eureka-server gateway-service auth-service lease-service \
+                     payment-service property-management-service \
+                     maintainance-ticket-service mpesa-service notification-engine; do
+            echo "=== Building $svc ==="
+            mvn -B -ntp -f $svc/pom.xml clean package -Dmaven.test.skip=true
+          done

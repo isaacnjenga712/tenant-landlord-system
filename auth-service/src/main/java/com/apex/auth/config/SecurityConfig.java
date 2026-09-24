@@ -27,11 +27,10 @@ public class SecurityConfig {
             .csrf(csrf -> csrf.disable())
             .authorizeHttpRequests(auth -> auth
                 // ✅ Actuator endpoints — allow unauthenticated health/info checks
-               
                 .requestMatchers("/actuator/**").permitAll()
 
-                // ✅ Public auth endpoints (login, register, refresh, validate)
-                .requestMatchers("/api/auth/**").permitAll()
+                // ✅ Public auth endpoints — must match the /api/v1 prefix used by gateway + frontend
+                .requestMatchers("/api/v1/auth/**").permitAll()
 
                 // Everything else requires a valid JWT
                 .anyRequest().authenticated()

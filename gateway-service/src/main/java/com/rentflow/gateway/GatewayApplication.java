@@ -18,13 +18,47 @@ public class GatewayApplication {
     @Bean
     public RouteLocator routes(RouteLocatorBuilder builder) {
         return builder.routes()
-            .route("auth",         r -> r.path("/api/auth/**").uri("lb://AUTH-SERVICE"))
-            .route("lease",        r -> r.path("/api/leases/**").uri("lb://LEASE-SERVICE"))
-            .route("property",     r -> r.path("/api/properties/**").uri("lb://PROPERTY-MANAGEMENT-SERVICE"))
-            .route("maintenance",  r -> r.path("/api/tickets/**").uri("lb://MAINTENANCE-TICKET-SERVICE"))
-            .route("payment",      r -> r.path("/api/payments/**").uri("lb://PAYMENT-SERVICE"))
-            .route("mpesa",        r -> r.path("/api/mpesa/**").uri("lb://MPESA-SERVICE"))
-            .route("notification", r -> r.path("/api/notifications/**").uri("lb://NOTIFICATION-ENGINE"))
+
+            // ---------- Public auth endpoints (login, register, refresh) ----------
+            .route("auth", r -> r
+                .path("/api/v1/auth/**")
+                .uri("lb://AUTH-SERVICE"))
+
+            // ---------- Users ----------
+            .route("users", r -> r
+                .path("/api/v1/users/**")
+                .uri("lb://AUTH-SERVICE"))
+
+            // ---------- Properties ----------
+            .route("property", r -> r
+                .path("/api/v1/properties/**")
+                .uri("lb://PROPERTY-MANAGEMENT-SERVICE"))
+
+            // ---------- Leases ----------
+            .route("lease", r -> r
+                .path("/api/v1/leases/**")
+                .uri("lb://LEASE-SERVICE"))
+
+            // ---------- Payments (rent, history) ----------
+            .route("payment", r -> r
+                .path("/api/v1/payments/**")
+                .uri("lb://PAYMENT-SERVICE"))
+
+            // ---------- M-Pesa STK push (if separate service) ----------
+            .route("mpesa", r -> r
+                .path("/api/v1/mpesa/**")
+                .uri("lb://MPESA-SERVICE"))
+
+            // ---------- Maintenance tickets ----------
+            .route("maintenance", r -> r
+                .path("/api/v1/maintenance/**")
+                .uri("lb://MAINTENANCE-TICKET-SERVICE"))
+
+            // ---------- Notifications ----------
+            .route("notification", r -> r
+                .path("/api/v1/notifications/**")
+                .uri("lb://NOTIFICATION-ENGINE"))
+
             .build();
     }
 }

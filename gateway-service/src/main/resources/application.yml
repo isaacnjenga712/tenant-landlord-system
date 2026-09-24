@@ -22,6 +22,21 @@ spring:
         locator:
           enabled: false
           lower-case-service-id: false
+      # ---------- CORS (required for browser requests) ----------
+      globalcors:
+        add-to-simple-url-handler-mapping: true
+        cors-configurations:
+          '[/**]':
+            allowedOrigins:
+              - "http://localhost:5175"
+              - "http://localhost:5176"
+              - "http://127.0.0.1:5177"
+            allowedMethods: "*"
+            allowedHeaders: "*"
+            exposedHeaders:
+              - "Authorization"
+            allowCredentials: true
+            maxAge: 3600
 
 eureka:
   client:

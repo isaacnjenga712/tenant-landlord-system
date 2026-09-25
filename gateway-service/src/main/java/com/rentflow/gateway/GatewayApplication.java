@@ -29,9 +29,13 @@ public class GatewayApplication {
                 .path("/api/v1/users/**")
                 .uri("lb://AUTH-SERVICE"))
 
-            // ---------- Properties ----------
-            .route("property", r -> r
-                .path("/api/v1/properties/**")
+            // ---------- Properties, Landlords, Units (property-management-service) ----------
+            .route("property-service", r -> r
+                .path(
+                    "/api/v1/properties/**",
+                    "/api/v1/landlords/**",
+                    "/api/v1/units/**"
+                )
                 .uri("lb://PROPERTY-MANAGEMENT-SERVICE"))
 
             // ---------- Leases ----------

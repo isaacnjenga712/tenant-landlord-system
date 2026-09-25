@@ -1,9 +1,20 @@
 import apiClient from './client'
-import type { Lease, PaymentRecord } from '../types/lease'
+import type { Lease, PaginatedLeases } from '../types/lease'
 
 export const leaseApi = {
-  list: () => apiClient.get<Lease[]>('/leases'),
-  apply: (payload: Partial<Lease>) => apiClient.post<Lease>('/leases/apply', payload),
-  approve: (id: string) => apiClient.patch<Lease>(`/leases/${id}/approve`),
-  getPayments: (leaseId: string) => apiClient.get<PaymentRecord[]>(`/leases/${leaseId}/payments`),
+  list: (page = 0, size = 20) =>
+    apiClient.get<PaginatedLeases>('/leases', { params: { page, size } }),
+
+  get: (id: string) => apiClient.get<Lease>(`/leases/${id}`),
+
+  create: (payload: Partial<Lease>) => apiClient.post<Lease>('/leases', payload),
+
+  update: (id: string, payload: Partial<Lease>) =>
+    apiClient.put<Lease>(`/leases/${id}`, payload),
+
+  remove: (id: string) => apiClient.delete(`/leases/${id}`),
+
+  terminate: (id: string) => apiClient.post<Lease>(`/leases/${id}/terminate`),
+
+  renew: (id: string) => apiClient.post<Lease>(`/leases/${id}/renew`),
 }

@@ -9,21 +9,30 @@ import lombok.Setter;
 @Getter
 @Setter
 public class LandlordCreateRequest {
-	 
-	@NotBlank(message = "First name is required")
-    @Size(max = 100, message = "First name must be at most 100 characters")
+
+    @NotBlank(message = "First name is required")
+    @Size(max = 100)
     private String firstName;
 
     @NotBlank(message = "Last name is required")
-    @Size(max = 100, message = "Last name must be at most 100 characters")
+    @Size(max = 100)
     private String lastName;
 
     @NotBlank(message = "Email is required")
     @Email(message = "Invalid email format")
-    @Size(max = 255, message = "Email must be at most 255 characters")
+    @Size(max = 255)
     private String email;
 
-    @Size(max = 20, message = "Phone must be at most 20 characters")
+    @Size(max = 20)
     private String phoneNumber;
 
+    @NotBlank(message = "Company name is required")
+    @Size(max = 255)
+    private String companyName;
+
+    @Size(max = 255)
+    private String contactPerson;
+
+    @Size(max = 20)
+    private String phone;
 }

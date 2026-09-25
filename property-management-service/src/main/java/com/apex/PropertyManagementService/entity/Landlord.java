@@ -34,6 +34,16 @@ public class Landlord {
 
     private String phoneNumber;
 
+    // ---- columns that exist in DB but were missing from the entity ----
+    @Column(name = "company_name", nullable = false)
+    private String companyName;
+
+    @Column(name = "contact_person")
+    private String contactPerson;
+
+    private String phone;
+    // -------------------------------------------------------------------
+
     @OneToMany(mappedBy = "landlord", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
     private List<Property> properties = new ArrayList<>();
 

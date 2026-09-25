@@ -15,7 +15,7 @@ import java.util.List;
 import java.util.UUID;
 
 @RestController
-@RequestMapping("/api/landlords")
+@RequestMapping("/api/v1/landlords")
 @RequiredArgsConstructor
 public class LandlordController {
 

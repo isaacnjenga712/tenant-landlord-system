@@ -12,6 +12,14 @@ export interface Lease {
   status: LeaseStatus
 }
 
+export interface PaginatedLeases {
+  leases: Lease[]
+  page: number
+  size: number
+  totalElements: number
+  totalPages: number
+}
+
 export interface PaymentRecord {
   id: string
   leaseId: string
@@ -21,4 +29,3 @@ export interface PaymentRecord {
   paidAt?: string
   dueDate: string
 }
-

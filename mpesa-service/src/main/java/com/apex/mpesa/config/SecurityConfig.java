@@ -16,14 +16,14 @@ public class SecurityConfig {
         http
             .csrf(csrf -> csrf.disable())
             .authorizeHttpRequests(auth -> auth
-                // ✅ Actuator — Docker HEALTHCHECK + NGINX probe
+                
                 .requestMatchers("/actuator/**").permitAll()
 
-                // ✅ Safaricom callback — MUST be public (no JWT from Safaricom)
-                .requestMatchers("/api/payments/callback").permitAll()
+                // Safaricom callback — MUST be public (Safaricom doesn't send a JWT)
+                .requestMatchers("/api/v1/mpesa/callback").permitAll()
 
-                // Everything else requires authentication
-                .anyRequest().authenticated()
+                // Everything else is validated by the gateway — permit inside the service
+                .anyRequest().permitAll()
             )
             .sessionManagement(sess -> sess.sessionCreationPolicy(SessionCreationPolicy.STATELESS));
 

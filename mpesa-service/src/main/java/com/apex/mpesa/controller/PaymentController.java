@@ -12,7 +12,7 @@ import java.util.List;
 import java.util.Map;
 
 @RestController
-@RequestMapping("/api/payments")
+@RequestMapping("/api/v1/mpesa")
 @RequiredArgsConstructor
 @Slf4j
 public class PaymentController {

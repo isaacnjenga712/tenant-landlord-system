@@ -6,20 +6,17 @@
         <h2 class="mt-2 text-3xl font-bold text-slate-900">Available homes</h2>
       </div>
 
-      <p style="background: yellow; padding: 10px; font-family: monospace;">
-        loading: {{ loading }} | error: "{{ error }}" | count: {{ properties.length }}
-      </p>
+      <div v-if="loading" class="text-slate-500">Loading…</div>
+      <div v-else-if="error" class="text-red-600">{{ error }}</div>
+      <div v-else-if="!properties.length" class="text-slate-500">No properties.</div>
 
-      <div v-if="loading">Loading…</div>
-      <div v-else-if="error" style="color: red;">{{ error }}</div>
-      <div v-else-if="!properties.length">No properties.</div>
-      <div v-else>
-        <div v-for="p in properties" :key="p.id"
-             style="border: 2px solid green; padding: 10px; margin: 10px 0;">
-          <div><b>{{ p.addressLine1 }}</b>, {{ p.city }}</div>
-          <div>Status: {{ p.status }}</div>
-          <div>Property ID: {{ p.propertyId }}</div>
-        </div>
+      <div v-else class="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
+        <PropertyCard
+          v-for="p in properties"
+          :key="p.id"
+          :property="p"
+          @apply="handleApply"
+        />
       </div>
     </div>
   </AppLayout>
@@ -27,25 +24,82 @@
 
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
+import { useRouter } from 'vue-router'
 import AppLayout from '../../components/layout/AppLayout.vue'
-import apiClient from '../../api/client'
+import PropertyCard from '../../components/property/PropertyCard.vue'
+import { propertyApi } from '../../api/property.api'
+import { leaseApi } from '../../api/lease.api'
+import { useAuthStore } from '../../stores/auth'
+import { useNotificationStore } from '../../stores/notification'
+import type { Property } from '../../types/property'
 
-const properties = ref<any[]>([])
+const router = useRouter()
+const auth = useAuthStore()
+const notification = useNotificationStore()
+
+const properties = ref<Property[]>([])
 const loading = ref(true)
 const error = ref('')
+const submitting = ref(false)
 
-onMounted(async () => {
-  console.log('=== DIRECT FETCH START ===')
+function isoDaysFromNow(days: number) {
+  const d = new Date()
+  d.setDate(d.getDate() + days)
+  return d.toISOString().split('T')[0]
+}
+
+async function load() {
+  loading.value = true
+  error.value = ''
   try {
-    const { data } = await apiClient.get('/properties')
-    console.log('=== DIRECT FETCH OK, count:', data.length, data)
+    const { data } = await propertyApi.list()
     properties.value = data
   } catch (err: any) {
-    console.error('=== DIRECT FETCH FAILED', err)
-    error.value = err.message || 'fetch failed'
+    error.value = err.response?.data?.message || 'Failed to load properties'
   } finally {
     loading.value = false
-    console.log('=== DIRECT FETCH DONE, count:', properties.value.length)
   }
-})
+}
+
+async function handleApply(propertyId: string) {
+  if (submitting.value) return
+
+  const property = properties.value.find(p => p.id === propertyId)
+  if (!property) return
+
+  const tenantId = auth.user?.id
+  if (!tenantId) {
+    notification.addToast('You must be logged in to apply', 'error')
+    return
+  }
+  if (!property.landlordId) {
+    notification.addToast('Property has no landlord assigned', 'error')
+    return
+  }
+
+  submitting.value = true
+  try {
+    await leaseApi.create({
+      propertyId: property.id,
+      tenantId,
+      landlordId: property.landlordId,
+      startDate: isoDaysFromNow(0),
+      endDate: isoDaysFromNow(365),
+      rentAmount: property.rent ?? 0,
+      depositAmount: (property.rent ?? 0) * 2,
+    })
+
+    notification.addToast('Application submitted', 'success')
+    router.push('/tenant/my-lease')
+  } catch (err: any) {
+    notification.addToast(
+      err.response?.data?.message || 'Failed to apply for lease',
+      'error',
+    )
+  } finally {
+    submitting.value = false
+  }
+}
+
+onMounted(load)
 </script>

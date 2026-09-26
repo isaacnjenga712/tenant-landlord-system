@@ -32,7 +32,6 @@ public class LeaseServiceImpl implements LeaseService {
     private final LeaseMapper leaseMapper;
     private final LeaseEventProducer leaseEventProducer;
 
-    // Explicit constructor (replaces @RequiredArgsConstructor)
     public LeaseServiceImpl(LeaseRepository leaseRepository,
                             LeaseMapper leaseMapper,
                             LeaseEventProducer leaseEventProducer) {
@@ -154,6 +153,34 @@ public class LeaseServiceImpl implements LeaseService {
         return leaseMapper.toResponse(renewed);
     }
 
+    // ============================================================
+    // APPROVE — landlord accepts a DRAFT application
+    // ============================================================
+
+    @Override
+    public LeaseResponse approveLease(UUID id) {
+        Lease lease = leaseRepository.findById(id)
+                .orElseThrow(() -> new LeaseNotFoundException("Lease not found with id: " + id));
+
+        if (lease.getStatus() != LeaseStatus.DRAFT) {
+            throw new LeaseValidationException(
+                    "Only DRAFT leases can be approved. Current status: " + lease.getStatus());
+        }
+
+        lease.setStatus(LeaseStatus.ACTIVE);
+        Lease saved = leaseRepository.save(lease);
+        LeaseResponse response = leaseMapper.toResponse(saved);
+
+        // Notify downstream services (payment-service, notification-engine, etc.)
+        leaseEventProducer.publishLeaseCreated(response);
+
+        return response;
+    }
+
+    // ============================================================
+    // LIST
+    // ============================================================
+
     @Override
     public LeaseListResponse listLeases(UUID tenantId, UUID landlordId, UUID propertyId,
                                         LeaseStatus status, LocalDate startDate, LocalDate endDate,
@@ -180,6 +207,10 @@ public class LeaseServiceImpl implements LeaseService {
         listResponse.setTotalPages(leasePage.getTotalPages());
         return listResponse;
     }
+
+    // ============================================================
+    // SAGA
+    // ============================================================
 
     @Override
     @Transactional

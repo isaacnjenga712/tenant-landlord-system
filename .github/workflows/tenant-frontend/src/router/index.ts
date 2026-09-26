@@ -2,9 +2,32 @@ import { createRouter, createWebHistory, type RouteRecordRaw } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
 
 const routes: RouteRecordRaw[] = [
-  { path: '/', redirect: '/dashboard' },
+  // Role-based landing — no more hardcoded top-level dashboard
+  {
+    path: '/',
+    redirect: () => {
+      const auth = useAuthStore()
+      const role = auth.user?.role
+      if (role === 'TENANT') return '/tenant/dashboard'
+      if (role === 'LANDLORD') return '/landlord/dashboard'
+      if (role === 'ADMIN') return '/admin/analytics'
+      return '/login'
+    },
+  },
 
-  { path: '/dashboard', name: 'dashboard', component: () => import('../views/Dashboard.vue'), meta: { requiresAuth: true } },
+  // Keep /dashboard as a redirect for backwards compatibility
+  {
+    path: '/dashboard',
+    redirect: () => {
+      const auth = useAuthStore()
+      const role = auth.user?.role
+      if (role === 'TENANT') return '/tenant/dashboard'
+      if (role === 'LANDLORD') return '/landlord/dashboard'
+      if (role === 'ADMIN') return '/admin/analytics'
+      return '/login'
+    },
+  },
+
   { path: '/properties', name: 'properties', component: () => import('../views/Properties.vue'), meta: { requiresAuth: true } },
 
   { path: '/login', name: 'login', component: () => import('../views/Auth/Login.vue') },
@@ -35,13 +58,20 @@ const router = createRouter({
   routes,
 })
 
+function homeFor(role?: string) {
+  if (role === 'TENANT') return '/tenant/dashboard'
+  if (role === 'LANDLORD') return '/landlord/dashboard'
+  if (role === 'ADMIN') return '/admin/analytics'
+  return '/login'
+}
+
 router.beforeEach((to, _from, next) => {
   const authStore = useAuthStore()
 
-  // Guest routes — bounce authenticated users to dashboard
+  // Guest routes — bounce authenticated users to their home
   if (to.name === 'login' || to.name === 'register') {
     if (authStore.token) {
-      next('/dashboard')
+      next(homeFor(authStore.user?.role))
       return
     }
     next()
@@ -54,10 +84,10 @@ router.beforeEach((to, _from, next) => {
     return
   }
 
-  // Role check
+  // Role check — wrong role gets bounced home
   const allowedRoles = to.meta.roles as string[] | undefined
   if (allowedRoles && authStore.user?.role && !allowedRoles.includes(authStore.user.role)) {
-    next('/dashboard')
+    next(homeFor(authStore.user.role))
     return
   }
 

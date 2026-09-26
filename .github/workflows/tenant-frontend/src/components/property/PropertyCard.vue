@@ -30,6 +30,7 @@
       </span>
 
       <button
+        v-if="canApply"
         class="mt-3 w-full rounded bg-slate-900 py-2 text-sm font-medium text-white hover:bg-slate-800 disabled:opacity-50"
         :disabled="property.status !== 'AVAILABLE'"
         @click="$emit('apply', property.id)"
@@ -41,8 +42,13 @@
 </template>
 
 <script setup lang="ts">
+import { computed } from 'vue'
 import type { Property } from '../../types/property'
+import { useAuthStore } from '../../stores/auth'
 
 defineProps<{ property: Property }>()
 defineEmits(['apply'])
+
+const auth = useAuthStore()
+const canApply = computed(() => auth.user?.role === 'TENANT')
 </script>

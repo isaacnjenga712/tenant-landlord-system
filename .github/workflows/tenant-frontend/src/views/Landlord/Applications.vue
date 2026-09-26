@@ -18,6 +18,8 @@
             <tr>
               <th class="px-5 py-3 font-medium">Applicant</th>
               <th class="px-5 py-3 font-medium">Property</th>
+              <th class="px-5 py-3 font-medium">Period</th>
+              <th class="px-5 py-3 font-medium">Rent</th>
               <th class="px-5 py-3 font-medium">Status</th>
               <th class="px-5 py-3 font-medium">Action</th>
             </tr>
@@ -28,29 +30,25 @@
               :key="app.id"
               class="border-t border-slate-200"
             >
-              <td class="px-5 py-3">{{ app.tenantId }}</td>
+              <td class="px-5 py-3 font-mono text-xs">{{ app.tenantId.slice(0, 8) }}…</td>
               <td class="px-5 py-3">{{ propertyTitle(app.propertyId) }}</td>
+              <td class="px-5 py-3 text-xs">{{ app.startDate }} → {{ app.endDate }}</td>
+              <td class="px-5 py-3">KSh {{ formatMoney(app.rentAmount) }}</td>
               <td class="px-5 py-3">
-                <span
-                  :class="[
-                    'badge',
-                    app.status === 'PENDING' && 'bg-amber-100 text-amber-700',
-                    app.status === 'ACTIVE' && 'bg-emerald-100 text-emerald-700',
-                    app.status === 'TERMINATED' && 'bg-rose-100 text-rose-700',
-                  ]"
-                >
+                <span :class="statusClass(app.status)">
                   {{ app.status }}
                 </span>
               </td>
               <td class="px-5 py-3">
-                <BaseButton
-                  v-if="app.status === 'PENDING'"
-                  variant="secondary"
+                <button
+                  v-if="app.status === 'DRAFT'"
+                  class="rounded bg-emerald-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-emerald-700 disabled:opacity-50"
+                  :disabled="busyId === app.id"
                   @click="approve(app.id)"
                 >
-                  Approve
-                </BaseButton>
-                <BaseButton v-else variant="ghost">Details</BaseButton>
+                  {{ busyId === app.id ? 'Approving…' : 'Approve' }}
+                </button>
+                <span v-else class="text-xs text-slate-500">—</span>
               </td>
             </tr>
           </tbody>
@@ -63,7 +61,6 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
 import AppLayout from '../../components/layout/AppLayout.vue'
-import BaseButton from '../../components/common/BaseButton.vue'
 import { leaseApi } from '../../api/lease.api'
 import { propertyApi } from '../../api/property.api'
 import { useNotificationStore } from '../../stores/notification'
@@ -73,36 +70,59 @@ import type { Property } from '../../types/property'
 const applications = ref<Lease[]>([])
 const properties = ref<Property[]>([])
 const loading = ref(true)
+const busyId = ref<string | null>(null)
 const notification = useNotificationStore()
 
 function propertyTitle(propertyId: string): string {
   const p = properties.value.find(x => x.id === propertyId)
-  return p ? `${p.addressLine1}, ${p.city}` : propertyId.slice(0, 8)
+  return p ? `${p.addressLine1}, ${p.city}` : propertyId.slice(0, 8) + '…'
+}
+
+function formatMoney(n: number | string | undefined) {
+  return Number(n || 0).toLocaleString()
+}
+
+function statusClass(status: string) {
+  const base = 'inline-block rounded px-2 py-0.5 text-xs font-medium'
+  if (status === 'ACTIVE') return `${base} bg-emerald-100 text-emerald-700`
+  if (status === 'DRAFT' || status === 'PENDING') return `${base} bg-amber-100 text-amber-700`
+  return `${base} bg-rose-100 text-rose-700`
 }
 
 async function approve(leaseId: string) {
+  busyId.value = leaseId
   try {
-    // NOTE: backend doesn't yet have an /approve endpoint.
-    // Uncomment the line below once you add it:
-    // await leaseApi.approve(leaseId)
-    notification.addToast('Approval endpoint not yet implemented', 'info')
+    await leaseApi.approve(leaseId)
+    notification.addToast('Lease approved', 'success')
+    await load()
   } catch (err: any) {
-    notification.addToast(err.response?.data?.message || 'Approve failed', 'error')
+    notification.addToast(
+      err.response?.data?.message || 'Approve failed',
+      'error',
+    )
+  } finally {
+    busyId.value = null
   }
 }
 
-onMounted(async () => {
+async function load() {
+  loading.value = true
   try {
     const [leaseRes, propRes] = await Promise.all([
-      leaseApi.list(),
+      leaseApi.list(0, 50),
       propertyApi.list(),
     ])
-    applications.value = leaseRes.data.leases.filter(l => l.status === 'PENDING')
+    const all = leaseRes.data.leases ?? []
+    // Backend uses DRAFT for "pending application"
+    applications.value = all.filter(l => l.status === 'DRAFT' || l.status === 'PENDING')
     properties.value = propRes.data
   } catch (err) {
     console.error('Applications load failed', err)
+    notification.addToast('Failed to load applications', 'error')
   } finally {
     loading.value = false
   }
-})
+}
+
+onMounted(load)
 </script>

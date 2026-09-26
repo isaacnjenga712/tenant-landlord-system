@@ -1,5 +1,6 @@
 import { defineStore } from 'pinia'
 import { propertyApi } from '../api/property.api'
+import { unitApi } from '../api/unit.api'
 import type { Property, PropertyFilter, PropertyStatus } from '../types/property'
 
 interface PropertyStoreFilter {
@@ -58,6 +59,41 @@ export const usePropertyStore = defineStore('property', {
 
     addProperty(property: Property) {
       this.items.unshift(property)
+    },
+
+    async createProperty(payload: {
+      addressLine1: string
+      addressLine2?: string | null
+      city: string
+      state?: string | null
+      zipCode?: string | null
+      country?: string | null
+      status?: PropertyStatus
+    }) {
+      this.loading = true
+      this.error = ''
+      try {
+        const { data } = await propertyApi.create(payload)
+        await this.fetchProperties()
+        return data
+      } catch (err: any) {
+        this.error = err.response?.data?.message || 'Failed to create property'
+        throw err
+      } finally {
+        this.loading = false
+      }
+    },
+
+    async createUnit(payload: {
+      propertyId: string
+      bedrooms: number
+      bathrooms: number
+      monthlyRent: number
+      status?: 'AVAILABLE' | 'OCCUPIED' | 'MAINTENANCE'
+    }) {
+      const { data } = await unitApi.create(payload)
+      await this.fetchProperties()
+      return data
     },
   },
 })

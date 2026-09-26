@@ -22,7 +22,7 @@ import java.util.UUID;
 @RequestMapping("/api/v1/leases")
 @Validated
 public class LeaseController {
-	
+
 	 private final LeaseService leaseService;
 
 	LeaseController(LeaseService leaseService) {
@@ -67,6 +67,12 @@ public class LeaseController {
 	    public ResponseEntity<LeaseResponse> renewLease(@PathVariable UUID id,
 	                                                    @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate newEndDate) {
 	        LeaseResponse response = leaseService.renewLease(id, newEndDate);
+	        return ResponseEntity.ok(response);
+	    }
+
+	    @PostMapping("/{id}/approve")
+	    public ResponseEntity<LeaseResponse> approveLease(@PathVariable UUID id) {
+	        LeaseResponse response = leaseService.approveLease(id);
 	        return ResponseEntity.ok(response);
 	    }
 

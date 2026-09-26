@@ -9,6 +9,7 @@ import type {
 
 /** Actual shape returned by the backend */
 export interface AuthResponse {
+  id: string
   accessToken: string
   refreshToken: string
   email: string
@@ -27,8 +28,8 @@ function toSession(raw: AuthResponse): AuthSession {
     token: raw.accessToken,
     refreshToken: raw.refreshToken,
     user: {
-      id: raw.email,            // backend doesn't return an id — use email as fallback
-      name: raw.email,          // backend doesn't return a name — use email as fallback
+      id: raw.id,
+      name: raw.email,
       email: raw.email,
       role: raw.role,
     },
@@ -55,6 +56,4 @@ export const authApi = {
 
   refresh: (refreshToken: string) =>
     apiClient.post<AuthResponse>('/auth/refresh', { refreshToken }),
-
-  me: () => apiClient.get<UserProfile>('/auth/me'),
 }

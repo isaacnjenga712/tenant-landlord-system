@@ -16,7 +16,7 @@ import java.util.Map;
 @RequiredArgsConstructor
 @Slf4j
 public class PaymentController {
-	
+
 	private final DarajaService darajaService;
 
     // -------- Initiate STK Push --------
@@ -39,13 +39,14 @@ public class PaymentController {
     // -------- Safaricom Callback (Webhook) --------
     @PostMapping("/callback")
     public ResponseEntity<?> mpesaCallback(@RequestBody MpesaCallbackDto callbackPayload) {
+        log.info("=== CALLBACK HIT ===");
+        log.info("Payload: {}", callbackPayload);
         try {
             darajaService.processCallback(callbackPayload);
-            // Always return 200 OK to prevent Safaricom from retrying
+            log.info("=== CALLBACK PROCESSED OK ===");
             return ResponseEntity.ok(Map.of("ResultCode", 0, "ResultDescription", "Success"));
         } catch (Exception e) {
-            log.error("Callback processing error", e);
-            // Return 200 even on error to avoid retries; log the error for manual reconciliation
+            log.error("=== CALLBACK PROCESSING ERROR ===", e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                     .body(Map.of("ResultCode", 1, "ResultDescription", "Internal error"));
         }
@@ -80,7 +81,6 @@ public class PaymentController {
         }
     }
 
-    // -------- Get all transactions for a tenant (UUID) --------
     @GetMapping("/transactions/tenant/{tenantId}")
     public ResponseEntity<?> getTransactionsByTenant(@PathVariable String tenantId) {
         try {
@@ -93,7 +93,6 @@ public class PaymentController {
         }
     }
 
-    // -------- Get all transactions for a lease (UUID) --------
     @GetMapping("/transactions/lease/{leaseId}")
     public ResponseEntity<?> getTransactionsByLease(@PathVariable String leaseId) {
         try {
@@ -105,5 +104,4 @@ public class PaymentController {
                     .body(Map.of("error", "Failed to retrieve lease transactions."));
         }
     }
-
 }

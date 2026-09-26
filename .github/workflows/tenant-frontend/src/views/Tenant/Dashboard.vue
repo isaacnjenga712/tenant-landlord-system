@@ -47,10 +47,11 @@
               <h3 class="text-lg font-semibold text-slate-900">Recent payments</h3>
               <button
                 v-if="lease"
-                class="rounded bg-emerald-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-emerald-700"
+                class="rounded bg-emerald-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-emerald-700 disabled:opacity-50"
+                :disabled="paying"
                 @click="openPayDialog"
               >
-                Pay via M‑Pesa
+                {{ paying ? 'Sending…' : 'Pay via M‑Pesa' }}
               </button>
             </div>
 
@@ -84,13 +85,16 @@ import LeaseCard from '../../components/lease/LeaseCard.vue'
 import { leaseApi } from '../../api/lease.api'
 import { paymentApi, type Payment } from '../../api/payment.api'
 import { mpesaApi } from '../../api/mpesa.api'
+import { useAuthStore } from '../../stores/auth'
 import { useNotificationStore } from '../../stores/notification'
 
 const loading = ref(true)
 const error = ref('')
 const lease = ref<any | null>(null)
 const payments = ref<Payment[]>([])
+const paying = ref(false)
 const notification = useNotificationStore()
+const auth = useAuthStore()
 
 const rentAmount = computed(() =>
   lease.value?.rentAmount ?? lease.value?.monthlyRent ?? 0,
@@ -110,7 +114,7 @@ const recentPayments = computed(() =>
     .slice(0, 5),
 )
 
-function formatMoney(n: number) {
+function formatMoney(n: number | string | undefined) {
   return Number(n || 0).toLocaleString()
 }
 
@@ -121,7 +125,9 @@ function formatDate(d?: string) {
 
 function statusClass(status: string) {
   const base = 'rounded px-2 py-0.5 text-xs font-medium'
-  if (status === 'PAID' || status === 'COMPLETED') return `${base} bg-emerald-100 text-emerald-700`
+  if (status === 'PAID' || status === 'COMPLETED' || status === 'SUCCESS') {
+    return `${base} bg-emerald-100 text-emerald-700`
+  }
   if (status === 'PENDING') return `${base} bg-amber-100 text-amber-700`
   return `${base} bg-rose-100 text-rose-700`
 }
@@ -135,7 +141,11 @@ async function loadDashboard() {
       paymentApi.listAll(),
     ])
     const leases = leaseRes.data?.leases ?? []
-    lease.value = leases.find((l: any) => l.status === 'ACTIVE') ?? leases[0] ?? null
+    lease.value =
+      leases.find((l: any) => l.status === 'ACTIVE') ??
+      leases.find((l: any) => l.status === 'DRAFT') ??
+      leases[0] ??
+      null
     payments.value = paymentsList
   } catch (err: any) {
     error.value = err.response?.data?.message || 'Failed to load dashboard'
@@ -145,19 +155,44 @@ async function loadDashboard() {
 }
 
 async function openPayDialog() {
-  if (!lease.value) return
+  if (!lease.value || paying.value) return
+
   const phone = prompt('Enter M-Pesa phone (e.g. 2547XXXXXXXX)')
   if (!phone) return
+
+  const tenantId = auth.user?.id
+  if (!tenantId) {
+    notification.addToast('You must be logged in', 'error')
+    return
+  }
+
+  const amount = rentAmount.value
+  if (!amount) {
+    notification.addToast('Lease has no rent amount set', 'error')
+    return
+  }
+
+  paying.value = true
   try {
     await mpesaApi.stkPush({
       phone,
-      amount: rentAmount.value,
+      amount,
       leaseId: lease.value.id,
+      tenantId,
+      accountReference: `LEASE-${lease.value.id.slice(0, 8)}`,
+      transactionDesc: 'Rent payment',
     })
     notification.addToast('M-Pesa prompt sent to your phone', 'success')
-    setTimeout(loadDashboard, 3000)
+
+    // STK push is async — give the callback time, then reload
+    setTimeout(loadDashboard, 5000)
   } catch (err: any) {
-    notification.addToast(err.response?.data?.message || 'Payment failed', 'error')
+    notification.addToast(
+      err.response?.data?.message || err.response?.data?.error || 'Payment failed',
+      'error',
+    )
+  } finally {
+    paying.value = false
   }
 }
 

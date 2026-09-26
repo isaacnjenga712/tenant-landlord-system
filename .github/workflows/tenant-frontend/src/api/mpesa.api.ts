@@ -4,6 +4,10 @@ export interface StkPushRequest {
   phone: string
   amount: number
   leaseId: string
+  tenantId: string
+  accountReference: string
+  transactionDesc: string
+  invoiceId?: string
 }
 
 export interface StkPushResponse {

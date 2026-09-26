@@ -6,57 +6,52 @@ import org.springframework.context.annotation.Configuration;
 @Configuration
 public class DarajaConfig {
 
-    @Value("${mpesa.daraja.consumer-key:}")
+    @Value("${daraja.consumer.key:}")
     private String consumerKey;
 
-    @Value("${mpesa.daraja.consumer-secret:}")
+    @Value("${daraja.consumer.secret:}")
     private String consumerSecret;
 
-    @Value("${mpesa.daraja.shortcode:174379}")
+    @Value("${daraja.shortcode:174379}")
     private String shortcode;
 
-    @Value("${mpesa.daraja.passkey:}")
+    @Value("${daraja.passkey:}")
     private String passkey;
 
-    @Value("${mpesa.daraja.callback-url:https://example.com/callback}")
+    @Value("${daraja.callback.url:}")
     private String callbackUrl;
 
-    @Value("${mpesa.daraja.base-url:https://sandbox.safaricom.co.ke}")
+    @Value("${daraja.base.url:https://sandbox.safaricom.co.ke}")
     private String baseUrl;
 
-    @Value("${mpesa.daraja.oauth-url:/oauth/v1/generate?grant_type=client_credentials}")
-    private String oauthPath;
+    @Value("${daraja.oauth.url:${daraja.base.url}/oauth/v1/generate?grant_type=client_credentials}")
+    private String oauthUrl;
 
-    @Value("${mpesa.daraja.stk-push-url:/mpesa/stkpush/v1/processrequest}")
-    private String stkPushPath;
+    @Value("${daraja.stkpush.url:${daraja.base.url}/mpesa/stkpush/v1/processrequest}")
+    private String stkPushUrl;
 
-    // Core getters
     public String getConsumerKey() { return consumerKey; }
     public String getConsumerSecret() { return consumerSecret; }
     public String getShortcode() { return shortcode; }
+    public String getShortCode() { return shortcode; }
     public String getPasskey() { return passkey; }
+    public String getPassKey() { return passkey; }
     public String getCallbackUrl() { return callbackUrl; }
     public String getBaseUrl() { return baseUrl; }
 
-    // Uppercase variants - your code may use any
-    public String getShortCode() { return shortcode; }
-    public String getPassKey() { return passkey; }
+    public String getOauthUrl() { return oauthUrl; }
+    public String getOAuthUrl() { return oauthUrl; }
+    public String getOauthPath() { return oauthUrl; }
+    public String getOauthEndpoint() { return oauthUrl; }
 
-    // OAuth URLs - ALL naming styles
-    public String getOauthUrl() { return baseUrl + oauthPath; }
-    public String getOauthPath() { return oauthPath; }
-    public String getOAuthUrl() { return getOauthUrl(); }
-    public String getOauthEndpoint() { return getOauthUrl(); }
-
-    // STK URLs - ALL naming styles - THIS FIXES YOUR ERROR
-    public String getStkPushUrl() { return baseUrl + stkPushPath; }
-    public String getStkpushUrl() { return getStkPushUrl(); }
-    public String getStkPushPath() { return stkPushPath; }
-    public String getStkpushPath() { return stkPushPath; }
-    public String getStkEndpoint() { return getStkPushUrl(); }
-    public String getStkPushEndpoint() { return getStkPushUrl(); }
-    public String getStkpushEndpoint() { return getStkPushUrl(); }
-    public String getSTKPushUrl() { return getStkPushUrl(); }
+    public String getStkPushUrl() { return stkPushUrl; }
+    public String getStkpushUrl() { return stkPushUrl; }
+    public String getSTKPushUrl() { return stkPushUrl; }
+    public String getStkPushPath() { return stkPushUrl; }
+    public String getStkpushPath() { return stkPushUrl; }
+    public String getStkEndpoint() { return stkPushUrl; }
+    public String getStkPushEndpoint() { return stkPushUrl; }
+    public String getStkpushEndpoint() { return stkPushUrl; }
 
     public String getTransactionType() { return "CustomerPayBillOnline"; }
 }

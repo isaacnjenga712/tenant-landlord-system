@@ -8,10 +8,11 @@
 
       <div class="flex gap-3">
         <button
-          class="rounded bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700"
+          class="rounded bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700 disabled:opacity-50"
+          :disabled="paying"
           @click="openPayDialog"
         >
-          Pay Rent via M‑Pesa
+          {{ paying ? 'Sending…' : 'Pay Rent via M‑Pesa' }}
         </button>
       </div>
 
@@ -32,15 +33,10 @@
           <tbody>
             <tr v-for="p in payments" :key="p.id" class="border-t border-slate-200">
               <td class="px-5 py-3">{{ new Date(p.createdAt).toLocaleDateString() }}</td>
-              <td class="px-5 py-3">KSh {{ p.amount.toLocaleString() }}</td>
+              <td class="px-5 py-3">KSh {{ formatMoney(p.amount) }}</td>
               <td class="px-5 py-3">{{ p.method }}</td>
               <td class="px-5 py-3">
-                <span :class="[
-                  'rounded px-2 py-0.5 text-xs font-medium',
-                  p.status === 'PAID' || p.status === 'COMPLETED' ? 'bg-emerald-100 text-emerald-700' :
-                  p.status === 'PENDING' ? 'bg-amber-100 text-amber-700' :
-                  'bg-rose-100 text-rose-700',
-                ]">
+                <span :class="statusClass(p.status)">
                   {{ p.status }}
                 </span>
               </td>
@@ -58,12 +54,28 @@ import AppLayout from '../../components/layout/AppLayout.vue'
 import { paymentApi, type Payment } from '../../api/payment.api'
 import { mpesaApi } from '../../api/mpesa.api'
 import { leaseApi } from '../../api/lease.api'
+import { useAuthStore } from '../../stores/auth'
 import { useNotificationStore } from '../../stores/notification'
 
 const payments = ref<Payment[]>([])
 const loading = ref(true)
 const error = ref('')
+const paying = ref(false)
 const notification = useNotificationStore()
+const auth = useAuthStore()
+
+function formatMoney(n: number | string | undefined) {
+  return Number(n || 0).toLocaleString()
+}
+
+function statusClass(status: string) {
+  const base = 'rounded px-2 py-0.5 text-xs font-medium'
+  if (status === 'PAID' || status === 'COMPLETED' || status === 'SUCCESS') {
+    return `${base} bg-emerald-100 text-emerald-700`
+  }
+  if (status === 'PENDING') return `${base} bg-amber-100 text-amber-700`
+  return `${base} bg-rose-100 text-rose-700`
+}
 
 async function loadPayments() {
   loading.value = true
@@ -78,10 +90,16 @@ async function loadPayments() {
 }
 
 async function openPayDialog() {
-  // Find the tenant's active lease
+  if (paying.value) return
+
   try {
+    // Find the tenant's active lease
     const { data } = await leaseApi.list()
-    const activeLease = data.leases.find(l => l.status === 'ACTIVE')
+    const activeLease =
+      data.leases.find(l => l.status === 'ACTIVE') ??
+      data.leases.find(l => l.status === 'DRAFT') ??
+      null
+
     if (!activeLease) {
       notification.addToast('No active lease found', 'error')
       return
@@ -90,15 +108,40 @@ async function openPayDialog() {
     const phone = prompt('Enter M-Pesa phone (e.g. 2547XXXXXXXX)')
     if (!phone) return
 
-    const amount = activeLease.rentAmount ?? activeLease.monthlyRent ?? 0
+    const tenantId = auth.user?.id
+    if (!tenantId) {
+      notification.addToast('You must be logged in', 'error')
+      return
+    }
 
-    await mpesaApi.stkPush({ phone, amount, leaseId: activeLease.id })
+    const amount = Number(activeLease.rentAmount ?? activeLease.monthlyRent ?? 0)
+    if (!amount) {
+      notification.addToast('Lease has no rent amount set', 'error')
+      return
+    }
+
+    paying.value = true
+
+    await mpesaApi.stkPush({
+      phone,
+      amount,
+      leaseId: activeLease.id,
+      tenantId,
+      accountReference: `LEASE-${activeLease.id.slice(0, 8)}`,
+      transactionDesc: 'Rent payment',
+    })
+
     notification.addToast('M-Pesa prompt sent to your phone', 'success')
 
-    // Reload after a short delay (STK push is async)
-    setTimeout(loadPayments, 3000)
+    // STK push is async — reload after a delay to catch the callback
+    setTimeout(loadPayments, 5000)
   } catch (err: any) {
-    notification.addToast(err.response?.data?.message || 'Payment failed', 'error')
+    notification.addToast(
+      err.response?.data?.message || err.response?.data?.error || 'Payment failed',
+      'error',
+    )
+  } finally {
+    paying.value = false
   }
 }
 

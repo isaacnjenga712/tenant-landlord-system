@@ -18,12 +18,13 @@ public interface LeaseService {
     void cancelLease(UUID id);
     void terminateLease(UUID id, LocalDate terminationDate);
     LeaseResponse renewLease(UUID id, LocalDate newEndDate);
+
+    LeaseResponse approveLease(UUID id);   // ← add
+
     LeaseListResponse listLeases(UUID tenantId, UUID landlordId, UUID propertyId,
                                  LeaseStatus status, LocalDate startDate, LocalDate endDate,
                                  int page, int size);
 
-    // Saga handling method
     void handleSagaReply(SagaReplyEvent reply);
 }
-
 

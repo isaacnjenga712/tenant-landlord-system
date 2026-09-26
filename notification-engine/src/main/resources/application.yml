@@ -2,61 +2,94 @@ spring:
   application:
     name: notification-engine
 
-  # ==================== MongoDB ====================
   data:
     mongodb:
-      uri: ${SPRING_DATA_MONGODB_URI:mongodb://localhost:27017/notificationdb}
+      uri: ${SPRING_DATA_MONGODB_URI:mongodb://mongodb:27017/notificationdb}
 
-  # ==================== Mail (SMTP) ====================
   mail:
     host: ${SPRING_MAIL_HOST:smtp.gmail.com}
     port: ${SPRING_MAIL_PORT:587}
-    username: ${SPRING_MAIL_USERNAME:isaackaruku029@gmail.com}
-    password: ${SPRING_MAIL_PASSWORD:svbq owho gsgq tzqr}
+    username: ${SPRING_MAIL_USERNAME:}
+    password: ${SPRING_MAIL_PASSWORD:}
     properties:
       mail:
         smtp:
           auth: ${SPRING_MAIL_PROPERTIES_MAIL_SMTP_AUTH:true}
           starttls:
             enable: ${SPRING_MAIL_PROPERTIES_MAIL_SMTP_STARTTLS_ENABLE:true}
+          connectiontimeout: 5000
+          timeout: 5000
+          writetimeout: 5000
 
-  # ==================== Thymeleaf ====================
   thymeleaf:
     prefix: classpath:/templates/
     suffix: .html
     cache: false
     check-existence: true
 
-  # ==================== Kafka ====================
   kafka:
-    bootstrap-servers: ${SPRING_KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
-    listener:
-      auto-startup: ${SPRING_KAFKA_LISTENER_AUTO_STARTUP:true}
+    bootstrap-servers: ${SPRING_KAFKA_BOOTSTRAP_SERVERS:kafka:29092}
     producer:
       key-serializer: org.apache.kafka.common.serialization.StringSerializer
       value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
+      properties:
+        acks: all
+        retries: 3
+        enable.idempotence: true
+        spring.json.add.type.headers: false
     consumer:
-      group-id: notification-engine-group
+      group-id: ${SPRING_KAFKA_CONSUMER_GROUP_ID:notification-engine-group}
       auto-offset-reset: earliest
+      enable-auto-commit: false
       key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
       value-deserializer: org.springframework.kafka.support.serializer.JsonDeserializer
       properties:
-        spring.json.trusted.packages: "*"
-        spring.json.type.mapping: "payment:com.property.notification.dto.PaymentEventDto,maintenance:com.property.notification.dto.MaintenanceEventDto"
+        spring.json.trusted.packages: "com.platform.common.events.*,com.property.notification.*"
+        spring.json.use.type.headers: false
+        spring.json.value.default.type: java.util.Map
+        spring.json.type.mapping: "payment:com.property.notification.dto.PaymentEventDto,maintenance:com.property.notification.dto.MaintenanceEventDto,leaseCreated:com.platform.common.events.lease.LeaseCreatedEvent,leaseTerminated:com.platform.common.events.lease.LeaseTerminatedEvent,leaseCompensationRequired:com.platform.common.events.lease.LeaseCompensationRequiredEvent,ticketCreated:com.platform.common.events.maintenance.TicketCreatedEvent,ticketResolved:com.platform.common.events.maintenance.TicketResolvedEvent,paymentReceived:com.platform.common.events.billing.PaymentReceivedEvent,paymentFailed:com.platform.common.events.billing.PaymentFailedEvent,propertyRegistered:com.platform.common.events.property.PropertyRegisteredEvent,propertyUpdated:com.platform.common.events.property.PropertyUpdatedEvent"
+    listener:
+      auto-startup: ${SPRING_KAFKA_LISTENER_AUTO_STARTUP:true}
+      ack-mode: manual_immediate
+      missing-topics-fatal: false
+      concurrency: 5
+      properties:
+        max.poll.interval.ms: 300000
+        max.poll.records: 50
 
-# ==================== Custom Kafka topics ====================
+eureka:
+  client:
+    service-url:
+      defaultZone: ${EUREKA_CLIENT_SERVICEURL_DEFAULTZONE:http://eureka-server:8761/eureka/}
+    register-with-eureka: true
+    fetch-registry: true
+  instance:
+    prefer-ip-address: true
+    lease-renewal-interval-in-seconds: 10
+    lease-expiration-duration-in-seconds: 30
+
 app:
   kafka:
     topics:
       payment: payment-events
       maintenance: maintenance-events
+      payment-received: payment.events.received
+      payment-failed: payment.events.failed
+      lease-created: lease.events.created
+      lease-terminated: lease.events.terminated
+      lease-compensation-required: lease.events.compensation.required
+      ticket-created: maintenance.events.created
+      ticket-resolved: maintenance.events.resolved
+      property-registered: property.events.registered
+      property-updated: property.events.updated
+      notification-dlq: notification.events.dlq
 
-# ==================== SMS Gateway ====================
 sms:
   gateway:
     url: ${SMS_GATEWAY_URL:http://mock-sms-gateway/send}
+    timeout: 5000
+    retry-max: 3
 
-# ==================== Resilience4j ====================
 resilience4j:
   retry:
     instances:
@@ -65,30 +98,73 @@ resilience4j:
         waitDuration: 2s
         retryExceptions:
           - java.lang.RuntimeException
+          - org.springframework.web.client.RestClientException
+      emailRetry:
+        maxAttempts: 3
+        waitDuration: 3s
+  circuitbreaker:
+    instances:
+      emailCB:
+        failureRateThreshold: 50
+        waitDurationInOpenState: 30s
+      smsCB:
+        failureRateThreshold: 50
+        waitDurationInOpenState: 30s
 
-# ==================== Server ====================
 server:
   port: ${SERVER_PORT:8080}
 
-# ============================================================
-# ✅ ACTUATOR — exposes /actuator/health and /actuator/info
-# ============================================================
 management:
   endpoints:
     web:
       exposure:
-        include: health,info
+        include: health,info,prometheus,metrics,kafka,circuitbreakers,retries
       base-path: /actuator
   endpoint:
     health:
       show-details: always
       probes:
         enabled: true
+    prometheus:
+      enabled: true
+  health:
+    mail:
+      enabled: false
+    mongo:
+      enabled: true
+    kafka:
+      enabled: true
+  metrics:
+    tags:
+      application: ${spring.application.name}
+      env: ${SPRING_PROFILES_ACTIVE:default}
+    distribution:
+      percentiles-histogram:
+        http.server.requests: true
+      percentiles:
+        http.server.requests: 0.5, 0.95, 0.99
+      slo:
+        http.server.requests: 100ms, 500ms, 1s, 5s
+  prometheus:
+    metrics:
+      export:
+        enabled: true
+  tracing:
+    sampling:
+      probability: 1.0
+    propagation:
+      type: b3
+  zipkin:
+    tracing:
+      endpoint: ${ZIPKIN_URL:http://zipkin:9411/api/v2/spans}
   info:
     env:
       enabled: true
 
-# ==================== Logging ====================
 logging:
   level:
     com.property.notification: ${LOG_LEVEL_NOTIFICATION:DEBUG}
+    org.springframework.kafka: INFO
+    org.apache.kafka: WARN
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss} [${spring.application.name},%X{traceId:-},%X{spanId:-}] - %msg%n"

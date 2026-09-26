@@ -37,7 +37,6 @@ public class AuthenticationService {
     @Transactional
     public AuthenticationResponse register(RegisterRequest request) {
         if (userRepository.existsByEmail(request.getEmail())) {
-            // ✅ Typed exception → maps to HTTP 409 in GlobalExceptionHandler
             throw new EmailAlreadyRegisteredException(request.getEmail());
         }
 
@@ -50,8 +49,8 @@ public class AuthenticationService {
                 .build();
 
         user = userRepository.save(user);
-        log.info("Registered new user: id={} email={} role={}",
-                user.getId(), user.getEmail(), user.getRole());
+        log.info("Registered new user: id={} publicId={} email={} role={}",
+                user.getId(), user.getPublicId(), user.getEmail(), user.getRole());
 
         kafkaEventPublisher.publishUserRegistered(user);
 
@@ -74,7 +73,8 @@ public class AuthenticationService {
         SecurityContextHolder.getContext().setAuthentication(authentication);
 
         User user = (User) authentication.getPrincipal();
-        log.info("User logged in: id={} email={}", user.getId(), user.getEmail());
+        log.info("User logged in: id={} publicId={} email={}",
+                user.getId(), user.getPublicId(), user.getEmail());
 
         kafkaEventPublisher.publishUserLoggedIn(user);
 
@@ -119,7 +119,6 @@ public class AuthenticationService {
 
         log.info("Password changed for user id={} email={}", user.getId(), user.getEmail());
 
-        // Revoke all refresh tokens — user must re-authenticate everywhere
         refreshTokenService.deleteByUser(user);
 
         kafkaEventPublisher.publishUserPasswordChanged(user);
@@ -136,7 +135,7 @@ public class AuthenticationService {
 
         Role oldRole = user.getRole();
         if (oldRole == newRole) {
-            return;   // no-op
+            return;
         }
 
         user.setRole(newRole);
@@ -157,13 +156,12 @@ public class AuthenticationService {
                 .orElseThrow(() -> new RuntimeException("User not found"));
 
         if (!user.isEnabled()) {
-            return;   // already disabled
+            return;
         }
 
         user.setEnabled(false);
         userRepository.save(user);
 
-        // Invalidate all refresh tokens — user is locked out immediately
         refreshTokenService.deleteByUser(user);
 
         log.info("User disabled: id={} email={} reason={}",
@@ -178,6 +176,7 @@ public class AuthenticationService {
 
     private AuthenticationResponse buildResponse(User user, String accessToken, String refreshToken) {
         return AuthenticationResponse.builder()
+                .id(user.getPublicId())
                 .accessToken(accessToken)
                 .refreshToken(refreshToken)
                 .role(user.getRole())

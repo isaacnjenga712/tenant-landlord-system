@@ -1,31 +1,64 @@
 services:
+
   # ============================================================
   # INFRASTRUCTURE
   # ============================================================
 
-  postgres:
-    image: "postgres:15"
-    container_name: "postgres-db"
+  eureka-server:
+    build:
+      context: ./eureka-server
+      dockerfile: Dockerfile
+    container_name: rentflow-eureka
+    ports:
+      - "8761:8761"
     environment:
-      POSTGRES_USER: "postgres"
-      POSTGRES_PASSWORD: "apex123"
-      POSTGRES_DB: "tenant_landlord_auth"
+      SPRING_PROFILES_ACTIVE: "docker"
+      ZIPKIN_URL: "http://zipkin:9411/api/v2/spans"
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8761/actuator/health"]
+      interval: "15s"
+      timeout: "5s"
+      retries: 5
+      start_period: "40s"
+    networks:
+      - rentflow-network
+    restart: unless-stopped
+
+  postgres:
+    image: postgres:15-alpine
+    container_name: rentflow-postgres
+    environment:
+      POSTGRES_DB: "rentflow"
+      POSTGRES_USER: "rentflow"
+      POSTGRES_PASSWORD: "rentflow"
     ports:
       - "5432:5432"
     volumes:
-      - "postgres_data:/var/lib/postgresql/data"
-      - "./postgres-init:/docker-entrypoint-initdb.d:ro"
+      - "pgdata:/var/lib/postgresql/data"
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      test: ["CMD-SHELL", "pg_isready -U rentflow"]
       interval: "10s"
       timeout: "5s"
       retries: 5
     networks:
-      - "lease-network"
+      - rentflow-network
+
+  redis:
+    image: redis:7-alpine
+    container_name: rentflow-redis
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: "10s"
+      timeout: "3s"
+      retries: 5
+    networks:
+      - rentflow-network
 
   mongodb:
-    image: "mongo:7.0"
-    container_name: "mongodb"
+    image: mongo:7.0
+    container_name: rentflow-mongodb
     ports:
       - "27017:27017"
     volumes:
@@ -36,58 +69,114 @@ services:
       timeout: "5s"
       retries: 5
     networks:
-      - "lease-network"
-
-  redis:
-    image: "redis:7-alpine"
-    container_name: "redis"
-    command: >
-      redis-server
-      --appendonly yes
-      --maxmemory 256mb
-      --maxmemory-policy allkeys-lru
-      --save 60 1000
-    ports:
-      - "6379:6379"
-    volumes:
-      - "redis_data:/data"
-    healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
-      interval: "10s"
-      timeout: "3s"
-      retries: 5
-    networks:
-      - "lease-network"
-
-  zookeeper:
-    image: "confluentinc/cp-zookeeper:latest"
-    container_name: "zookeeper"
-    environment:
-      ZOOKEEPER_CLIENT_PORT: "2181"
-      ZOOKEEPER_TICK_TIME: "2000"
-    ports:
-      - "2181:2181"
-    networks:
-      - "lease-network"
+      - rentflow-network
 
   kafka:
-    image: "confluentinc/cp-kafka:7.4.0"
-    container_name: "kafka"
-    depends_on:
-      - "zookeeper"
+    image: apache/kafka:3.8.0
+    container_name: rentflow-kafka
     ports:
       - "9092:9092"
+      - "29092:29092"
     environment:
-      KAFKA_BROKER_ID: "1"
-      KAFKA_ZOOKEEPER_CONNECT: "zookeeper:2181"
-      KAFKA_LISTENERS: "PLAINTEXT://0.0.0.0:9092"
-      KAFKA_ADVERTISED_LISTENERS: "PLAINTEXT://kafka:9092"
-      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: "PLAINTEXT:PLAINTEXT"
-      KAFKA_INTER_BROKER_LISTENER_NAME: "PLAINTEXT"
-      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: "1"
+      KAFKA_NODE_ID: "1"
+      KAFKA_PROCESS_ROLES: "broker,controller"
+      KAFKA_LISTENERS: "PLAINTEXT://:29092,CONTROLLER://:9093,EXTERNAL://:9092"
+      KAFKA_ADVERTISED_LISTENERS: "PLAINTEXT://kafka:29092,EXTERNAL://localhost:9092"
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: "CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT,EXTERNAL:PLAINTEXT"
+      KAFKA_CONTROLLER_QUORUM_VOTERS: "1@kafka:9093"
+      KAFKA_CONTROLLER_LISTENER_NAMES: "CONTROLLER"
       KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: "1"
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: "1"
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: "1"
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: "0"
+      KAFKA_SHARE_COORDINATOR_STATE_TOPIC_REPLICATION_FACTOR: "1"
+    volumes:
+      - "kafka_data:/var/lib/kafka/data"
     networks:
-      - "lease-network"
+      - rentflow-network
+    restart: unless-stopped
+
+  # ============================================================
+  # OBSERVABILITY
+  # ============================================================
+
+  prometheus:
+    image: prom/prometheus:v2.55.0
+    container_name: rentflow-prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - "./observability/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro"
+      - "prometheus_data:/prometheus"
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.path=/prometheus"
+      - "--storage.tsdb.retention.time=15d"
+      - "--web.enable-lifecycle"
+    networks:
+      - rentflow-network
+    restart: unless-stopped
+
+  grafana:
+    image: grafana/grafana:11.3.0
+    container_name: rentflow-grafana
+    ports:
+      - "3000:3000"
+    environment:
+      GF_SECURITY_ADMIN_USER: "admin"
+      GF_SECURITY_ADMIN_PASSWORD: "admin"
+      GF_USERS_ALLOW_SIGN_UP: "false"
+      GF_DASHBOARDS_DEFAULT_HOME_DASHBOARD_PATH: "/var/lib/grafana/dashboards/spring-boot-overview.json"
+    volumes:
+      - "./observability/grafana/provisioning:/etc/grafana/provisioning:ro"
+      - "./observability/grafana/dashboards:/var/lib/grafana/dashboards:ro"
+      - "grafana_data:/var/lib/grafana"
+    depends_on:
+      - prometheus
+    networks:
+      - rentflow-network
+    restart: unless-stopped
+
+  zipkin:
+    image: openzipkin/zipkin:3.4
+    container_name: rentflow-zipkin
+    ports:
+      - "9411:9411"
+    environment:
+      STORAGE_TYPE: "mem"
+      JAVA_OPTS: "-Xms256m -Xmx512m"
+    networks:
+      - rentflow-network
+    restart: unless-stopped
+
+  kafka-exporter:
+    image: danielqsj/kafka-exporter:v1.8.0
+    container_name: rentflow-kafka-exporter
+    command:
+      - "--kafka.server=kafka:29092"
+      - "--web.listen-address=:9308"
+    ports:
+      - "9308:9308"
+    depends_on:
+      - kafka
+    networks:
+      - rentflow-network
+    restart: unless-stopped
+
+  node-exporter:
+    image: prom/node-exporter:v1.8.2
+    container_name: rentflow-node-exporter
+    command:
+      - "--path.rootfs=/host"
+    pid: host
+    volumes:
+      - "/:/host:ro"
+    ports:
+      - "9100:9100"
+    networks:
+      - rentflow-network
+    restart: unless-stopped
 
   # ============================================================
   # MICROSERVICES
@@ -95,328 +184,256 @@ services:
 
   auth-service:
     build:
-      context: "./auth-service"
-      dockerfile: "Dockerfile"
-    container_name: "auth-service"
+      context: ./auth-service
+      dockerfile: Dockerfile
+    container_name: rentflow-auth
+    environment:
+      SPRING_PROFILES_ACTIVE: "docker"
+      SPRING_DATASOURCE_URL: "jdbc:postgresql://postgres:5432/rentflow"
+      SPRING_DATASOURCE_USERNAME: "rentflow"
+      SPRING_DATASOURCE_PASSWORD: "rentflow"
+      SPRING_JPA_HIBERNATE_DDL_AUTO: "update"
+      SPRING_FLYWAY_ENABLED: "false"
+      SPRING_KAFKA_BOOTSTRAP_SERVERS: "kafka:29092"
+      JWT_ACCESS_SECRET: "${JWT_ACCESS_SECRET:-404E635266556A586E3272357538782F413F4428472B4B6250645367566B5970}"
+      JWT_REFRESH_SECRET: "${JWT_REFRESH_SECRET:-607164346A576E5A7234753778217A25432A462D4A614E645267556B587032}"
+      EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: "http://eureka-server:8761/eureka/"
+      ZIPKIN_URL: "http://zipkin:9411/api/v2/spans"
     depends_on:
       postgres:
         condition: "service_healthy"
+      eureka-server:
+        condition: "service_started"
       kafka:
         condition: "service_started"
     ports:
       - "8090:8080"
-    environment:
-      SERVER_PORT: "8080"
-      SPRING_DATASOURCE_URL: "jdbc:postgresql://postgres:5432/tenant_landlord_auth"
-      SPRING_DATASOURCE_USERNAME: "postgres"
-      SPRING_DATASOURCE_PASSWORD: "apex123"
-      SPRING_JPA_HIBERNATE_DDL_AUTO: "validate"
-      SPRING_FLYWAY_ENABLED: "true"
-      SPRING_FLYWAY_LOCATIONS: "classpath:db/migration"
-      SPRING_KAFKA_BOOTSTRAP_SERVERS: "kafka:9092"
-      SPRING_KAFKA_CONSUMER_GROUP_ID: "auth-service-group"
-      SPRING_KAFKA_LISTENER_AUTO_STARTUP: "true"
-      APP_KAFKA_TOPIC_USER_EVENTS: "auth.user.events"
-      APP_KAFKA_OUTBOX_ENABLED: "true"
-      APP_KAFKA_OUTBOX_BATCH_SIZE: "100"
-      APP_KAFKA_OUTBOX_FIXED_DELAY_MS: "5000"
-      APP_KAFKA_OUTBOX_INITIAL_DELAY_MS: "10000"
-      JWT_ACCESS_SECRET: "404E635266556A586E3272357538782F413F4428472B4B6250645367566B5970"
-      JWT_REFRESH_SECRET: "607164346A576E5A7234753778217A25432A462D4A614E645267556B587032"
-      LOG_LEVEL_COM_APEX_AUTH: "DEBUG"
-      LOG_LEVEL_KAFKA: "INFO"
-    healthcheck:
-      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8080/actuator/health"]
-      interval: "15s"
-      timeout: "5s"
-      retries: 5
-      start_period: "40s"
     networks:
-      - "lease-network"
-
-  mpesa-service:
-    build:
-      context: "./mpesa-service"
-      dockerfile: "Dockerfile"
-    container_name: "mpesa-service"
-    depends_on:
-      postgres:
-        condition: "service_healthy"
-    ports:
-      - "8089:8088"
-    environment:
-      SERVER_PORT: "8088"
-      SPRING_DATASOURCE_URL: "jdbc:postgresql://postgres:5432/mpesa_db"
-      SPRING_DATASOURCE_USERNAME: "postgres"
-      SPRING_DATASOURCE_PASSWORD: "apex123"
-      DARAJA_BASE_URL: "https://sandbox.safaricom.co.ke"
-      DARAJA_OAUTH_URL: "https://sandbox.safaricom.co.ke/oauth/v1/generate?grant_type=client_credentials"
-      DARAJA_STKPUSH_URL: "https://sandbox.safaricom.co.ke/mpesa/stkpush/v1/processrequest"
-      DARAJA_CONSUMER_KEY: "REMOVED"
-      DARAJA_CONSUMER_SECRET: "REMOVED"
-      DARAJA_PASSKEY: "REMOVED"
-      DARAJA_SHORTCODE: "174379"
-      DARAJA_CALLBACK_URL: "https://unguarded-cornhusk-impart.ngrok-free.dev/api/payments/callback"
-      SPRING_JPA_HIBERNATE_DDL_AUTO: "validate"
-      SPRING_FLYWAY_ENABLED: "true"
-      SPRING_FLYWAY_LOCATIONS: "classpath:db/migration"
-      LOG_LEVEL_COM_APEX_MPESA: "DEBUG"
-    healthcheck:
-      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8088/actuator/health"]
-      interval: "15s"
-      timeout: "5s"
-      retries: 5
-      start_period: "40s"
-    networks:
-      - "lease-network"
-
-  payment-service:
-    build:
-      context: "./payment-service"
-      dockerfile: "Dockerfile"
-    container_name: "payment-service"
-    depends_on:
-      postgres:
-        condition: "service_healthy"
-      kafka:
-        condition: "service_started"
-    ports:
-      - "8086:8086"
-    environment:
-      SERVER_PORT: "8086"
-      SPRING_DATASOURCE_URL: "jdbc:postgresql://postgres:5432/payment_db"
-      SPRING_DATASOURCE_USERNAME: "postgres"
-      SPRING_DATASOURCE_PASSWORD: "apex123"
-      SPRING_JPA_HIBERNATE_DDL_AUTO: "update"
-      SPRING_FLYWAY_ENABLED: "false"
-      SPRING_KAFKA_BOOTSTRAP_SERVERS: "kafka:9092"
-      SPRING_KAFKA_LISTENER_AUTO_STARTUP: "true"
-      LOG_LEVEL_COM_APEX_PAYMENT: "DEBUG"
-    healthcheck:
-      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8086/actuator/health"]
-      interval: "15s"
-      timeout: "5s"
-      retries: 5
-      start_period: "40s"
-    networks:
-      - "lease-network"
+      - rentflow-network
 
   lease-service:
     build:
-      context: "./lease-service"
-      dockerfile: "Dockerfile"
-    container_name: "lease-service"
+      context: ./lease-service
+      dockerfile: Dockerfile
+    container_name: rentflow-lease
+    environment:
+      SPRING_PROFILES_ACTIVE: "docker"
+      SERVER_PORT: "8081"
+      SPRING_DATASOURCE_URL: "jdbc:postgresql://postgres:5432/rentflow"
+      SPRING_DATASOURCE_USERNAME: "rentflow"
+      SPRING_DATASOURCE_PASSWORD: "rentflow"
+      SPRING_JPA_HIBERNATE_DDL_AUTO: "update"
+      SPRING_FLYWAY_ENABLED: "false"
+      SPRING_KAFKA_BOOTSTRAP_SERVERS: "kafka:29092"
+      EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: "http://eureka-server:8761/eureka/"
+      ZIPKIN_URL: "http://zipkin:9411/api/v2/spans"
     depends_on:
       postgres:
         condition: "service_healthy"
+      eureka-server:
+        condition: "service_started"
       kafka:
         condition: "service_started"
     ports:
       - "8085:8081"
-    environment:
-      SERVER_PORT: "8081"
-      SPRING_DATASOURCE_URL: "jdbc:postgresql://postgres:5432/lease_db"
-      SPRING_DATASOURCE_USERNAME: "postgres"
-      SPRING_DATASOURCE_PASSWORD: "apex123"
-      SPRING_JPA_HIBERNATE_DDL_AUTO: "create"
-      SPRING_FLYWAY_ENABLED: "false"
-      SPRING_KAFKA_BOOTSTRAP_SERVERS: "kafka:9092"
-      SPRING_KAFKA_LISTENER_AUTO_STARTUP: "true"
-      SPRING_KAFKA_ADMIN_AUTO_CREATE: "true"
-      SPRING_KAFKA_CONSUMER_GROUP_ID: "lease-service-group"
-      LOG_LEVEL_LEASE: "DEBUG"
-      LOG_LEVEL_KAFKA: "INFO"
-    healthcheck:
-      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8081/actuator/health"]
-      interval: "15s"
-      timeout: "5s"
-      retries: 5
-      start_period: "40s"
     networks:
-      - "lease-network"
+      - rentflow-network
 
   property-management-service:
     build:
-      context: .
-      dockerfile: ./property-management-service/Dockerfile
-    container_name: "property-service"
+      context: ./property-management-service
+      dockerfile: Dockerfile
+    container_name: rentflow-property
+    environment:
+      SPRING_PROFILES_ACTIVE: "docker"
+      SERVER_PORT: "8082"
+      SPRING_DATASOURCE_URL: "jdbc:postgresql://postgres:5432/rentflow"
+      SPRING_DATASOURCE_USERNAME: "rentflow"
+      SPRING_DATASOURCE_PASSWORD: "rentflow"
+      SPRING_JPA_HIBERNATE_DDL_AUTO: "update"
+      SPRING_FLYWAY_ENABLED: "false"
+      SPRING_KAFKA_BOOTSTRAP_SERVERS: "kafka:29092"
+      EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: "http://eureka-server:8761/eureka/"
+      ZIPKIN_URL: "http://zipkin:9411/api/v2/spans"
     depends_on:
       postgres:
         condition: "service_healthy"
+      eureka-server:
+        condition: "service_started"
       kafka:
         condition: "service_started"
     ports:
       - "8082:8082"
-    environment:
-      SPRING_DATASOURCE_URL: "jdbc:postgresql://postgres:5432/property_service_db"
-      SPRING_DATASOURCE_USERNAME: "postgres"
-      SPRING_DATASOURCE_PASSWORD: "apex123"
-      SPRING_JPA_HIBERNATE_DDL_AUTO: "create"
-      SPRING_FLYWAY_ENABLED: "false"
-      SPRING_KAFKA_BOOTSTRAP_SERVERS: "kafka:9092"
-      SPRING_KAFKA_LISTENER_AUTO_STARTUP: "false"
-      SERVER_PORT: "8082"
-    healthcheck:
-      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8082/actuator/health"]
-      interval: "15s"
-      timeout: "5s"
-      retries: 5
-      start_period: "40s"
     networks:
-      - "lease-network"
+      - rentflow-network
 
   maintainance-ticket-service:
     build:
-      context: .
-      dockerfile: ./maintainance-ticket-service/Dockerfile
-    container_name: "maintenance-service"
+      context: ./maintainance-ticket-service
+      dockerfile: Dockerfile
+    container_name: rentflow-maintenance
+    environment:
+      SPRING_PROFILES_ACTIVE: "docker"
+      SERVER_PORT: "8084"
+      SPRING_DATASOURCE_URL: "jdbc:postgresql://postgres:5432/rentflow"
+      SPRING_DATASOURCE_USERNAME: "rentflow"
+      SPRING_DATASOURCE_PASSWORD: "rentflow"
+      SPRING_JPA_HIBERNATE_DDL_AUTO: "update"
+      SPRING_FLYWAY_ENABLED: "false"
+      SPRING_KAFKA_BOOTSTRAP_SERVERS: "kafka:29092"
+      EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: "http://eureka-server:8761/eureka/"
+      ZIPKIN_URL: "http://zipkin:9411/api/v2/spans"
     depends_on:
       postgres:
         condition: "service_healthy"
+      eureka-server:
+        condition: "service_started"
       kafka:
         condition: "service_started"
     ports:
       - "8084:8084"
-    environment:
-      SPRING_DATASOURCE_URL: "jdbc:postgresql://postgres:5432/ticket_db"
-      SPRING_DATASOURCE_USERNAME: "postgres"
-      SPRING_DATASOURCE_PASSWORD: "apex123"
-      SPRING_JPA_HIBERNATE_DDL_AUTO: "create"
-      SPRING_FLYWAY_ENABLED: "false"
-      SPRING_KAFKA_BOOTSTRAP_SERVERS: "kafka:9092"
-      SPRING_KAFKA_LISTENER_AUTO_STARTUP: "false"
-      SERVER_PORT: "8084"
-    healthcheck:
-      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8084/actuator/health"]
-      interval: "15s"
-      timeout: "5s"
-      retries: 5
-      start_period: "40s"
     networks:
-      - "lease-network"
+      - rentflow-network
+
+  payment-service:
+    build:
+      context: ./payment-service
+      dockerfile: Dockerfile
+    container_name: rentflow-payment
+    environment:
+      SPRING_PROFILES_ACTIVE: "docker"
+      SERVER_PORT: "8086"
+      SPRING_DATASOURCE_URL: "jdbc:postgresql://postgres:5432/rentflow"
+      SPRING_DATASOURCE_USERNAME: "rentflow"
+      SPRING_DATASOURCE_PASSWORD: "rentflow"
+      SPRING_JPA_HIBERNATE_DDL_AUTO: "update"
+      SPRING_FLYWAY_ENABLED: "false"
+      SPRING_KAFKA_BOOTSTRAP_SERVERS: "kafka:29092"
+      EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: "http://eureka-server:8761/eureka/"
+      ZIPKIN_URL: "http://zipkin:9411/api/v2/spans"
+    depends_on:
+      postgres:
+        condition: "service_healthy"
+      eureka-server:
+        condition: "service_started"
+      kafka:
+        condition: "service_started"
+    ports:
+      - "8086:8086"
+    networks:
+      - rentflow-network
+
+  mpesa-service:
+    build:
+      context: ./mpesa-service
+      dockerfile: Dockerfile
+    container_name: rentflow-mpesa
+    environment:
+      SPRING_PROFILES_ACTIVE: "docker"
+      SERVER_PORT: "8088"
+      SPRING_DATASOURCE_URL: "jdbc:postgresql://postgres:5432/rentflow"
+      SPRING_DATASOURCE_USERNAME: "rentflow"
+      SPRING_DATASOURCE_PASSWORD: "rentflow"
+      SPRING_JPA_HIBERNATE_DDL_AUTO: "update"
+      SPRING_FLYWAY_ENABLED: "false"
+      SPRING_KAFKA_BOOTSTRAP_SERVERS: "kafka:29092"
+      DARAJA_CONSUMER_KEY: "${DARAJA_CONSUMER_KEY:-}"
+      DARAJA_CONSUMER_SECRET: "${DARAJA_CONSUMER_SECRET:-}"
+      DARAJA_PASSKEY: "${DARAJA_PASSKEY:-}"
+      DARAJA_SHORTCODE: "${DARAJA_SHORTCODE:-174379}"
+      DARAJA_CALLBACK_URL: "${DARAJA_CALLBACK_URL:-}"
+      EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: "http://eureka-server:8761/eureka/"
+      ZIPKIN_URL: "http://zipkin:9411/api/v2/spans"
+    depends_on:
+      postgres:
+        condition: "service_healthy"
+      eureka-server:
+        condition: "service_started"
+    ports:
+      - "8089:8088"
+    networks:
+      - rentflow-network
 
   notification-engine:
     build:
-      context: "./notification-engine"
-      dockerfile: "Dockerfile"
-    container_name: "notification-engine"
+      context: ./notification-engine
+      dockerfile: Dockerfile
+    container_name: rentflow-notification
+    environment:
+      SPRING_PROFILES_ACTIVE: "docker"
+      SERVER_PORT: "8080"
+      SPRING_DATA_MONGODB_URI: "mongodb://mongodb:27017/notificationdb"
+      SPRING_KAFKA_BOOTSTRAP_SERVERS: "kafka:29092"
+      SPRING_MAIL_HOST: "${SPRING_MAIL_HOST:-smtp.gmail.com}"
+      SPRING_MAIL_PORT: "${SPRING_MAIL_PORT:-587}"
+      SPRING_MAIL_USERNAME: "${SPRING_MAIL_USERNAME:-}"
+      SPRING_MAIL_PASSWORD: "${SPRING_MAIL_PASSWORD:-}"
+      EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: "http://eureka-server:8761/eureka/"
+      ZIPKIN_URL: "http://zipkin:9411/api/v2/spans"
     depends_on:
       mongodb:
         condition: "service_healthy"
+      eureka-server:
+        condition: "service_started"
       kafka:
         condition: "service_started"
     ports:
       - "8081:8080"
-    environment:
-      SERVER_PORT: "8080"
-      SPRING_DATA_MONGODB_URI: "mongodb://mongodb:27017/notificationdb"
-      SPRING_KAFKA_BOOTSTRAP_SERVERS: "kafka:9092"
-      SPRING_MAIL_USERNAME: "isaackaruku029@gmail.com"
-      SPRING_MAIL_PASSWORD: "svbq owho gsgq tzqr"
-      SPRING_MAIL_HOST: "smtp.gmail.com"
-      SPRING_MAIL_PORT: "587"
-      SPRING_MAIL_PROPERTIES_MAIL_SMTP_AUTH: "true"
-      SPRING_MAIL_PROPERTIES_MAIL_SMTP_STARTTLS_ENABLE: "true"
-    healthcheck:
-      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8080/actuator/health"]
-      interval: "15s"
-      timeout: "5s"
-      retries: 5
-      start_period: "40s"
     networks:
-      - "lease-network"
+      - rentflow-network
 
   # ============================================================
-  # API GATEWAY — sits between NGINX and the microservices
+  # GATEWAY
   # ============================================================
+
   gateway-service:
     build:
-      context: "./gateway-service"
-      dockerfile: "Dockerfile"
-    container_name: "gateway-service"
+      context: ./gateway-service
+      dockerfile: Dockerfile
+    container_name: rentflow-gateway
+    environment:
+      SPRING_PROFILES_ACTIVE: "docker"
+      SERVER_PORT: "8080"
+      JWT_ACCESS_SECRET: "${JWT_ACCESS_SECRET:-404E635266556A586E3272357538782F413F4428472B4B6250645367566B5970}"
+      REDIS_HOST: "redis"
+      REDIS_PORT: "6379"
+      EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: "http://eureka-server:8761/eureka/"
+      ZIPKIN_URL: "http://zipkin:9411/api/v2/spans"
     depends_on:
       redis:
         condition: "service_healthy"
-      auth-service:
-        condition: "service_started"
-      lease-service:
-        condition: "service_started"
-      property-management-service:
-        condition: "service_started"
-      payment-service:
-        condition: "service_started"
-      mpesa-service:
-        condition: "service_started"
-      notification-engine:
-        condition: "service_started"
-      maintainance-ticket-service:
+      eureka-server:
         condition: "service_started"
     ports:
-      - "8088:8080"
-    environment:
-      SERVER_PORT: "8080"
-      GATEWAY_PORT: "8080"
-
-      # JWT (must match auth-service's secret)
-      JWT_ACCESS_SECRET: "404E635266556A586E3272357538782F413F4428472B4B6250645367566B5970"
-      JWT_EXPIRATION: "86400000"
-
-      # Downstream services
-      AUTH_SERVICE_URL:          "http://auth-service:8080"
-      LEASE_SERVICE_URL:         "http://lease-service:8081"
-      PROPERTY_SERVICE_URL:      "http://property-service:8082"
-      PAYMENT_SERVICE_URL:       "http://payment-service:8086"
-      MPESA_SERVICE_URL:         "http://mpesa-service:8088"
-      NOTIFICATION_SERVICE_URL:  "http://notification-engine:8080"
-      TICKET_SERVICE_URL:        "http://maintenance-service:8084"
-
-      # Redis
-      REDIS_HOST: "redis"
-      REDIS_PORT: "6379"
-      REDIS_PASSWORD: ""
-
-      # CORS
-      CORS_ORIGINS: "http://localhost:5173,http://localhost:3000"
-
-      # Logging
-      LOG_LEVEL_GATEWAY: "INFO"
-      LOG_LEVEL_APP: "DEBUG"
-    healthcheck:
-      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8080/actuator/health"]
-      interval: "15s"
-      timeout: "5s"
-      retries: 5
-      start_period: "40s"
+      - "8080:8080"
     networks:
-      - "lease-network"
-    restart: unless-stopped
+      - rentflow-network
 
   # ============================================================
-  # NGINX — edge proxy
+  # EDGE
   # ============================================================
+
   nginx:
-    build:
-      context: "./nginx"
-      dockerfile: "Dockerfile"
-    container_name: "landlord-nginx"
-    depends_on:
-      gateway-service:
-        condition: "service_started"
-      mpesa-service:
-        condition: "service_started"
-      notification-engine:
-        condition: "service_started"
+    image: nginx:alpine
+    container_name: rentflow-nginx
     ports:
       - "80:80"
+    volumes:
+      - "./nginx/nginx.conf:/etc/nginx/nginx.conf:ro"
+      - "./nginx/conf.d:/etc/nginx/conf.d:ro"
+    depends_on:
+      - gateway-service
+      - auth-service
     networks:
-      - "lease-network"
-    restart: unless-stopped
+      - rentflow-network
 
 volumes:
-  postgres_data:
+  pgdata:
   mongo_data:
-  redis_data:
+  kafka_data:
+  prometheus_data:
+  grafana_data:
 
 networks:
-  lease-network:
-    driver: "bridge"
+  rentflow-network:
+    driver: bridge

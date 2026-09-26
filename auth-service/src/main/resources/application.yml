@@ -1,60 +1,125 @@
 server:
-  port: ${SERVER_PORT:8090}          # <-- make it overridable via env var
+  port: ${SERVER_PORT:8080}
 
 spring:
   application:
     name: auth-service
+
   datasource:
-    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/tenant_landlord_auth}
-    username: ${SPRING_DATASOURCE_USERNAME:postgres}
-    password: ${SPRING_DATASOURCE_PASSWORD:apex123}
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://postgres:5432/rentflow}
+    username: ${SPRING_DATASOURCE_USERNAME:rentflow}
+    password: ${SPRING_DATASOURCE_PASSWORD:DB_PASSWORD}
     driver-class-name: org.postgresql.Driver
+
   jpa:
     hibernate:
-      ddl-auto: ${SPRING_JPA_HIBERNATE_DDL_AUTO:validate}
+      ddl-auto: ${SPRING_JPA_HIBERNATE_DDL_AUTO:update}
     properties:
       hibernate:
         dialect: org.hibernate.dialect.PostgreSQLDialect
         format_sql: true
     show-sql: false
+
   flyway:
-    enabled: ${SPRING_FLYWAY_ENABLED:true}
+    enabled: ${SPRING_FLYWAY_ENABLED:false}
     baseline-on-migrate: true
-    locations: ${SPRING_FLYWAY_LOCATIONS:classpath:db/migration}
+    locations: classpath:db/migration
+
   kafka:
-    bootstrap-servers: ${SPRING_KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+    bootstrap-servers: ${SPRING_KAFKA_BOOTSTRAP_SERVERS:kafka:29092}
     consumer:
       group-id: ${SPRING_KAFKA_CONSUMER_GROUP_ID:auth-service-group}
+      auto-offset-reset: earliest
+      enable-auto-commit: false
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.springframework.kafka.support.serializer.JsonDeserializer
+      properties:
+        spring.json.trusted.packages: "com.apex.auth.event,com.platform.common.events.*"
+        spring.json.use.type.headers: false
+        spring.json.value.default.type: com.apex.auth.event.UserRegisteredEvent
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
+      properties:
+        enable.idempotence: true
+        acks: all
+        retries: 3
+        spring.json.add.type.headers: false
     listener:
       auto-startup: ${SPRING_KAFKA_LISTENER_AUTO_STARTUP:true}
+      ack-mode: manual_immediate
+      concurrency: 3
+
+eureka:
+  client:
+    service-url:
+      defaultZone: ${EUREKA_CLIENT_SERVICEURL_DEFAULTZONE:http://eureka-server:8761/eureka/}
+    register-with-eureka: true
+    fetch-registry: true
+  instance:
+    prefer-ip-address: true
+    lease-renewal-interval-in-seconds: 10
+    lease-expiration-duration-in-seconds: 30
 
 jwt:
   access:
-    secret: ${JWT_ACCESS_SECRET:404E635266556A586E3272357538782F413F4428472B4B6250645367566B5970}
-    expiration: 900000      # 15 minutes
+    secret: ${JWT_ACCESS_SECRET:e4b0f0d0afc4308ddd637c719a33f8fe5878298520dea23c518fde391f6dedb5}
+    expiration: 900000
   refresh:
-    secret: ${JWT_REFRESH_SECRET:607164346A576E5A7234753778217A25432A462D4A614E645267556B587032}
-    expiration: 604800000   # 7 days
+    secret: ${JWT_REFRESH_SECRET:b12ff623ef6015621aa8612402616ef873d05bc2dd43699f01f0f77c06d00ea0}
+    expiration: 604800000
 
-# ============================================================
-# Actuator — exposes /actuator/health and /actuator/info
-# ============================================================
+app:
+  kafka:
+    topic:
+      user-events: ${APP_KAFKA_TOPIC_USER_EVENTS:auth.user.events}
+    topics:
+      user-events: ${APP_KAFKA_TOPIC_USER_EVENTS:auth.user.events}
+
 management:
   endpoints:
     web:
       exposure:
-        include: health,info
+        include: health,info,prometheus,metrics
       base-path: /actuator
   endpoint:
     health:
       show-details: always
       probes:
         enabled: true
+    prometheus:
+      enabled: true
+  metrics:
+    tags:
+      application: ${spring.application.name}
+      env: ${SPRING_PROFILES_ACTIVE:default}
+    distribution:
+      percentiles-histogram:
+        http.server.requests: true
+      percentiles:
+        http.server.requests: 0.5, 0.95, 0.99
+      slo:
+        http.server.requests: 100ms, 500ms, 1s, 5s
+  prometheus:
+    metrics:
+      export:
+        enabled: true
+  tracing:
+    sampling:
+      probability: 1.0
+    propagation:
+      type: b3
+  zipkin:
+    tracing:
+      endpoint: ${ZIPKIN_URL:http://zipkin:9411/api/v2/spans}
   info:
     env:
       enabled: true
 
 logging:
   level:
-    org.springframework.security: DEBUG
-    com.landten.auth: DEBUG
+    org.springframework.security: INFO
+    com.apex.auth: DEBUG
+    org.springframework.kafka: INFO
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss} [${spring.application.name},%X{traceId:-},%X{spanId:-}] - %msg%n"

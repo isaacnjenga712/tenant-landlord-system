@@ -25,7 +25,8 @@ public class UserEventConsumer {
 
     @KafkaListener(
             topics = "${app.kafka.topic.user-events}",
-            groupId = "${spring.kafka.consumer.group-id}"
+            groupId = "${spring.kafka.consumer.group-id}",
+            containerFactory = "kafkaListenerContainerFactory"
     )
     @Transactional
     public void onUserEvent(String rawPayload, Acknowledgment ack) {

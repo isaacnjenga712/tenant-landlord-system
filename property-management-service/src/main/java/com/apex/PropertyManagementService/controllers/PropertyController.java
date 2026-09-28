@@ -1,7 +1,6 @@
 package com.apex.PropertyManagementService.controllers;
 
 import com.apex.PropertyManagementService.DTOs.request.PropertyCreateRequest;
-
 import com.apex.PropertyManagementService.DTOs.response.PropertyResponse;
 import com.apex.PropertyManagementService.DTOs.request.PropertyUpdateRequest;
 import com.apex.PropertyManagementService.Service.PropertyService;
@@ -21,17 +20,15 @@ public class PropertyController {
 
     private final PropertyService propertyService;
 
- 
-
     @PostMapping
     public ResponseEntity<PropertyResponse> createProperty(
             @Valid @RequestBody PropertyCreateRequest request,
-            @RequestHeader(value = "X-Tenant-ID", required = false) String tenantHeader) {
+            @RequestHeader(value = "X-Tenant-ID", required = false) String tenantHeader,
+            @RequestHeader(value = "X-User-Id", required = false) String userHeader) {
         return ResponseEntity.status(HttpStatus.CREATED)
-                .body(propertyService.createProperty(request, tenantHeader));
+                .body(propertyService.createProperty(request, tenantHeader, userHeader));
     }
 
-    
     @GetMapping
     public ResponseEntity<List<PropertyResponse>> getAllProperties() {
         return ResponseEntity.ok(propertyService.getAllProperties());
@@ -62,8 +59,6 @@ public class PropertyController {
         return ResponseEntity.ok(propertyService.getPropertiesByCity(city));
     }
 
-   
-
     @PutMapping("/{id}")
     public ResponseEntity<PropertyResponse> updateProperty(
             @PathVariable UUID id,
@@ -80,7 +75,6 @@ public class PropertyController {
         return ResponseEntity.ok(propertyService.updatePropertyStatus(id, status, tenantHeader));
     }
 
-  
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> deleteProperty(
             @PathVariable UUID id,

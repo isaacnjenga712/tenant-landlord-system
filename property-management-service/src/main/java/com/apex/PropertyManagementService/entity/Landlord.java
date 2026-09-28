@@ -23,6 +23,9 @@ public class Landlord {
     @GeneratedValue(strategy = GenerationType.UUID)
     private UUID id;
 
+    @Column(name = "user_id", unique = true)
+    private UUID userId;
+
     @Column(unique = true, nullable = false)
     private String email;
 
@@ -34,7 +37,7 @@ public class Landlord {
 
     private String phoneNumber;
 
-    // ---- columns that exist in DB but were missing from the entity ----
+    
     @Column(name = "company_name", nullable = false)
     private String companyName;
 
@@ -50,7 +53,7 @@ public class Landlord {
     @Enumerated(EnumType.STRING)
     private LandlordStatus status;
 
-    // auditing fields
+    
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
 

@@ -9,7 +9,7 @@ import java.util.UUID;
 
 public interface PropertyService {
 
-    PropertyResponse createProperty(PropertyCreateRequest request, String tenantHeader);
+    PropertyResponse createProperty(PropertyCreateRequest request, String tenantHeader, String userHeader);
 
     List<PropertyResponse> getAllProperties();
 

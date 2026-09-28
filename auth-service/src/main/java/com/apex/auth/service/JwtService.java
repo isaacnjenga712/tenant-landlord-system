@@ -1,5 +1,6 @@
 package com.apex.auth.service;
 
+import com.apex.auth.entity.User;
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.security.Keys;
@@ -66,10 +67,16 @@ public class JwtService {
     // ---- Common ----
 
     private String buildToken(Map<String, Object> extraClaims, UserDetails userDetails, Long expiration, String secret) {
+        String publicId = null;
+        if (userDetails instanceof User user) {
+            publicId = user.getPublicId() != null ? user.getPublicId().toString() : null;
+        }
+
         return Jwts.builder()
-                .id(UUID.randomUUID().toString())           // ← jti: guarantees uniqueness
+                .id(UUID.randomUUID().toString())
                 .claims(extraClaims)
                 .subject(userDetails.getUsername())
+                .claim("publicId", publicId)
                 .issuedAt(new Date(System.currentTimeMillis()))
                 .expiration(new Date(System.currentTimeMillis() + expiration))
                 .signWith(getSigningKey(secret))

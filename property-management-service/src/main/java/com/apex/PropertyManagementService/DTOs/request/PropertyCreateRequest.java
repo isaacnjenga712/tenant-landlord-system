@@ -7,11 +7,12 @@ import java.util.UUID;
 
 @Data
 public class PropertyCreateRequest {
-    @NotNull(message = "Property ID is required")
-    private UUID propertyId;          // ✅ UUID
 
-    @NotNull(message = "Landlord ID is required")
-    private UUID landlordId;          // ✅ UUID
+    @NotNull(message = "Property ID is required")
+    private UUID propertyId;
+
+    // landlordId no longer required — backend derives from JWT / X-User-Id header
+    private UUID landlordId;
 
     private String addressLine1;
     private String addressLine2;

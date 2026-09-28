@@ -31,7 +31,9 @@ public class PropertyMapper {
         return PropertyResponse.builder()
                 .id(property.getId())
                 .propertyId(property.getPropertyId())
-                .landlordId(property.getLandlord() != null ? property.getLandlord().getId() : null)
+                .landlordId(property.getLandlord() != null
+                        ? property.getLandlord().getUserId()
+                        : null)
                 .addressLine1(property.getAddressLine1())
                 .addressLine2(property.getAddressLine2())
                 .city(property.getCity())
@@ -39,12 +41,11 @@ public class PropertyMapper {
                 .zipCode(property.getZipCode())
                 .country(property.getCountry())
                 .status(property.getStatus() != null ? property.getStatus().name() : null)
-                .unitIds(property.getUnits() != null ?
-                        property.getUnits().stream().map(unit -> unit.getId()).collect(Collectors.toList()) :
-                        List.of())
+                .unitIds(property.getUnits() != null
+                        ? property.getUnits().stream().map(unit -> unit.getId()).collect(Collectors.toList())
+                        : List.of())
                 .build();
     }
-
     public List<PropertyResponse> toResponseList(List<Property> properties) {
         if (properties == null) return List.of();
         return properties.stream().map(this::toResponse).collect(Collectors.toList());

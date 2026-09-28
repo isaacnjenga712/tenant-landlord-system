@@ -45,7 +45,7 @@ class UserEventConsumerTest {
                 }
                 """;
 
-        consumer.onUserEvent(payload, 0, 0L, acknowledgment);
+        consumer.onUserEvent(payload, acknowledgment);
 
         verify(acknowledgment).acknowledge();
     }
@@ -61,7 +61,7 @@ class UserEventConsumerTest {
                 }
                 """;
 
-        consumer.onUserEvent(payload, 0, 1L, acknowledgment);
+        consumer.onUserEvent(payload, acknowledgment);
 
         verify(acknowledgment).acknowledge();
     }
@@ -83,7 +83,7 @@ class UserEventConsumerTest {
                 }
                 """;
 
-        consumer.onUserEvent(payload, 0, 2L, acknowledgment);
+        consumer.onUserEvent(payload, acknowledgment);
 
         verify(userRepository).save(user);
         verify(acknowledgment).acknowledge();
@@ -99,7 +99,7 @@ class UserEventConsumerTest {
                 }
                 """;
 
-        consumer.onUserEvent(payload, 0, 3L, acknowledgment);
+        consumer.onUserEvent(payload, acknowledgment);
 
         verify(acknowledgment).acknowledge();
     }
@@ -108,7 +108,7 @@ class UserEventConsumerTest {
     @DisplayName("Malformed JSON causes retry (no ack)")
     void malformedPayload_throws() {
         try {
-            consumer.onUserEvent("not-json", 0, 4L, acknowledgment);
+            consumer.onUserEvent("not-json", acknowledgment);
         } catch (RuntimeException expected) {
             // Expected — the error handler will retry
         }

@@ -12,6 +12,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.UUID;
 import java.util.function.Function;
 
 @Service
@@ -66,6 +67,7 @@ public class JwtService {
 
     private String buildToken(Map<String, Object> extraClaims, UserDetails userDetails, Long expiration, String secret) {
         return Jwts.builder()
+                .id(UUID.randomUUID().toString())           // ← jti: guarantees uniqueness
                 .claims(extraClaims)
                 .subject(userDetails.getUsername())
                 .issuedAt(new Date(System.currentTimeMillis()))

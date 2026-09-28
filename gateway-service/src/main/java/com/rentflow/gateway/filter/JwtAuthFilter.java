@@ -24,7 +24,6 @@ public class JwtAuthFilter implements GlobalFilter, Ordered {
     private String secret;
 
     // Paths that don't require authentication.
-    // NOTE: matches the frontend's /api/v1 baseURL.
     private static final List<String> PUBLIC_PATHS = List.of(
         "/api/v1/auth/login",
         "/api/v1/auth/register",
@@ -57,8 +56,15 @@ public class JwtAuthFilter implements GlobalFilter, Ordered {
                 .parseSignedClaims(token)
                 .getPayload();
 
-            ServerHttpRequest.Builder mutated = exchange.getRequest().mutate()
-                .header("X-User-Id", claims.getSubject());
+            ServerHttpRequest.Builder mutated = exchange.getRequest().mutate();
+
+            // Prefer the UUID publicId claim; fall back to sub (email) only if absent
+            String publicId = claims.get("publicId", String.class);
+            if (publicId != null && !publicId.isBlank()) {
+                mutated.header("X-User-Id", publicId);
+            } else {
+                mutated.header("X-User-Email", claims.getSubject());
+            }
 
             Object role = claims.get("role");
             if (role != null) {

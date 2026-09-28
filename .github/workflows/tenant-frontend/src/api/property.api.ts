@@ -66,7 +66,13 @@ export const propertyApi = {
   },
 
   create: (payload: Partial<BackendProperty>) =>
-    apiClient.post<BackendProperty>('/properties', payload),
+    apiClient.post<BackendProperty>(
+      '/properties',
+      {
+        propertyId: crypto.randomUUID(),
+        ...payload,
+      },
+    ),
 
   update: (id: string, payload: Partial<BackendProperty>) =>
     apiClient.put<BackendProperty>(`/properties/${id}`, payload),

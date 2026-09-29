@@ -75,6 +75,7 @@ public class TicketCommandServiceImpl implements TicketCommandService {
         event.setTitle(saved.getTitle());
         event.setPriority(saved.getPriority().name());
         event.setCorrelationId(UUID.randomUUID());
+        event.setEventType("maintenance.ticket.created");   // ← add this
         eventPublisher.publishTicketCreated(event, saved.getTenantId());
 
         log.info("Ticket created: {} by {} tenantId={} landlordId={}",
@@ -111,6 +112,7 @@ public class TicketCommandServiceImpl implements TicketCommandService {
             event.setTenantId(updated.getTenantId());
             event.setTitle(updated.getTitle());
             event.setCorrelationId(UUID.randomUUID());
+            event.setEventType("maintenance.ticket.resolved");   // ← add this
             eventPublisher.publishTicketResolved(event, updated.getTenantId());
         }
 

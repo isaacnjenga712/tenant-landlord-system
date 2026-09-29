@@ -14,8 +14,6 @@ import org.springframework.kafka.config.TopicBuilder;
 import org.springframework.kafka.core.*;
 import org.springframework.kafka.listener.ContainerProperties;
 import org.springframework.kafka.listener.DefaultErrorHandler;
-import org.springframework.kafka.support.serializer.ErrorHandlingDeserializer;
-import org.springframework.kafka.support.serializer.JsonDeserializer;
 import org.springframework.kafka.support.serializer.JsonSerializer;
 import org.springframework.util.backoff.FixedBackOff;
 
@@ -31,12 +29,6 @@ public class KafkaConfig {
 
     @Value("${spring.kafka.consumer.group-id:notification-engine-group}")
     private String consumerGroupId;
-
-    @Value("${spring.kafka.consumer.properties.spring.json.trusted.packages:com.platform.common.events.*,com.property.notification.*,com.apex.*}")
-    private String trustedPackages;
-
-    @Value("${spring.kafka.consumer.properties.spring.json.type.mapping:}")
-    private String typeMapping;
 
     // ============================================================
     // PRODUCER
@@ -66,40 +58,29 @@ public class KafkaConfig {
     }
 
     // ============================================================
-    // CONSUMER
+    // CONSUMER — reads raw JSON strings, listener parses manually
     // ============================================================
 
     @Bean
-    public ConsumerFactory<String, Object> consumerFactory() {
+    public ConsumerFactory<String, String> consumerFactory() {
         Map<String, Object> props = new HashMap<>();
         props.put(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, bootstrapServers);
         props.put(ConsumerConfig.GROUP_ID_CONFIG, consumerGroupId);
         props.put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "earliest");
         props.put(ConsumerConfig.ENABLE_AUTO_COMMIT_CONFIG, false);
-
-        props.put(ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG, ErrorHandlingDeserializer.class);
-        props.put(ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG, ErrorHandlingDeserializer.class);
-        props.put(ErrorHandlingDeserializer.KEY_DESERIALIZER_CLASS, StringDeserializer.class);
-        props.put(ErrorHandlingDeserializer.VALUE_DESERIALIZER_CLASS, JsonDeserializer.class);
-
-        props.put(JsonDeserializer.TRUSTED_PACKAGES, trustedPackages);
-        props.put(JsonDeserializer.USE_TYPE_INFO_HEADERS, false);
-
-        if (typeMapping != null && !typeMapping.isBlank()) {
-            props.put(JsonDeserializer.TYPE_MAPPINGS, typeMapping);
-        }
-
+        props.put(ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class);
+        props.put(ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class);
         return new DefaultKafkaConsumerFactory<>(props);
     }
 
     @Bean
-    public ConcurrentKafkaListenerContainerFactory<String, Object> kafkaListenerContainerFactory(
-            ConsumerFactory<String, Object> consumerFactory) {
+    public ConcurrentKafkaListenerContainerFactory<String, String> kafkaListenerContainerFactory(
+            ConsumerFactory<String, String> consumerFactory) {
 
-        ConcurrentKafkaListenerContainerFactory<String, Object> factory =
+        ConcurrentKafkaListenerContainerFactory<String, String> factory =
                 new ConcurrentKafkaListenerContainerFactory<>();
         factory.setConsumerFactory(consumerFactory);
-        factory.setConcurrency(5);
+        factory.setConcurrency(3);
         factory.getContainerProperties().setAckMode(ContainerProperties.AckMode.MANUAL_IMMEDIATE);
 
         DefaultErrorHandler errorHandler = new DefaultErrorHandler(
@@ -114,8 +95,7 @@ public class KafkaConfig {
     }
 
     // ============================================================
-    // TOPICS — notification engine consumes from many sources,
-    //          only declares its own DLQ and admin topics here.
+    // TOPICS — DLQ only; consumers subscribe to many external topics
     // ============================================================
 
     @Bean

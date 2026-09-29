@@ -1,7 +1,6 @@
 package com.platform.common.events.maintenance;
 
 import lombok.AllArgsConstructor;
-import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
@@ -11,8 +10,8 @@ import java.util.UUID;
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
-@Builder
 public class TicketCreatedEvent implements Serializable {
+
     private static final long serialVersionUID = 1L;
 
     private UUID ticketId;
@@ -21,4 +20,15 @@ public class TicketCreatedEvent implements Serializable {
     private String title;
     private String priority;
     private UUID correlationId;
+    private String eventType;
+
+    public TicketCreatedEvent(UUID ticketId, UUID unitId, UUID tenantId,
+                              String title, String priority, UUID correlationId) {
+        this.ticketId = ticketId;
+        this.unitId = unitId;
+        this.tenantId = tenantId;
+        this.title = title;
+        this.priority = priority;
+        this.correlationId = correlationId;
+    }
 }

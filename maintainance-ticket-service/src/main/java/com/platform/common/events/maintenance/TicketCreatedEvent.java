@@ -18,6 +18,17 @@ public class TicketCreatedEvent implements Serializable {
     private UUID unitId;
     private UUID tenantId;
     private String title;
-    private String priority;          // LOW, MEDIUM, HIGH, URGENT
-    private UUID correlationId;     // For tracing
+    private String priority;
+    private UUID correlationId;
+    private String eventType;
+
+    public TicketCreatedEvent(UUID ticketId, UUID unitId, UUID tenantId,
+                              String title, String priority, UUID correlationId) {
+        this.ticketId = ticketId;
+        this.unitId = unitId;
+        this.tenantId = tenantId;
+        this.title = title;
+        this.priority = priority;
+        this.correlationId = correlationId;
+    }
 }

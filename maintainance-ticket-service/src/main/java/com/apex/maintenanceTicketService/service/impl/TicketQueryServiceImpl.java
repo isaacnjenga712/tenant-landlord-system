@@ -25,8 +25,34 @@ public class TicketQueryServiceImpl implements TicketQueryService {
 
     @Override
     @Transactional(readOnly = true)
-    public List<TicketResponse> getAllTickets() {
-        return ticketRepository.findAll().stream()
+    public List<TicketResponse> getAllTickets(String userIdHeader, String userRole) {
+        // Admin sees all
+        if ("ADMIN".equalsIgnoreCase(userRole)) {
+            return ticketRepository.findAll().stream()
+                    .map(mapper::toResponse)
+                    .collect(Collectors.toList());
+        }
+
+        if (userIdHeader == null || userIdHeader.isBlank()) {
+            return List.of();
+        }
+
+        UUID callerId;
+        try {
+            callerId = UUID.fromString(userIdHeader.trim());
+        } catch (IllegalArgumentException e) {
+            log.warn("Non-UUID X-User-Id: {}", userIdHeader);
+            return List.of();
+        }
+
+        if ("LANDLORD".equalsIgnoreCase(userRole)) {
+            return ticketRepository.findByLandlordId(callerId).stream()
+                    .map(mapper::toResponse)
+                    .collect(Collectors.toList());
+        }
+
+        // TENANT (default)
+        return ticketRepository.findByTenantId(callerId).stream()
                 .map(mapper::toResponse)
                 .collect(Collectors.toList());
     }
@@ -51,6 +77,14 @@ public class TicketQueryServiceImpl implements TicketQueryService {
     @Transactional(readOnly = true)
     public List<TicketResponse> getTicketsByTenant(UUID tenantId) {
         return ticketRepository.findByTenantId(tenantId).stream()
+                .map(mapper::toResponse)
+                .collect(Collectors.toList());
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<TicketResponse> getTicketsByLandlord(UUID landlordId) {
+        return ticketRepository.findByLandlordId(landlordId).stream()
                 .map(mapper::toResponse)
                 .collect(Collectors.toList());
     }

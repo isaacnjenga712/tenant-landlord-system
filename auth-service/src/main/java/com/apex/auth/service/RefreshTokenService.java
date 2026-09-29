@@ -9,6 +9,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
+import java.util.List;
 import java.util.Optional;
 
 @Service
@@ -23,15 +24,15 @@ public class RefreshTokenService {
 
     @Transactional
     public RefreshToken createRefreshToken(User user) {
-        // Invalidate any existing valid refresh token for this user
-        refreshTokenRepository.findByUserAndRevokedFalse(user)
-                .ifPresent(existing -> {
-                    existing.setRevoked(true);
-                    refreshTokenRepository.save(existing);
-                });
+        // Revoke all existing valid refresh tokens for this user
+        List<RefreshToken> existing = refreshTokenRepository.findAllByUserAndRevokedFalse(user);
+        for (RefreshToken rt : existing) {
+            rt.setRevoked(true);
+        }
+        if (!existing.isEmpty()) {
+            refreshTokenRepository.saveAll(existing);
+        }
 
-        // Generate a new random token string (optional, we could use JWT, but we use JWT for refresh as well)
-        // We'll generate a JWT refresh token which we store as the token string.
         String tokenValue = jwtService.generateRefreshToken(user);
 
         RefreshToken refreshToken = RefreshToken.builder()
@@ -60,7 +61,7 @@ public class RefreshTokenService {
             throw new RuntimeException("Refresh token expired");
         }
 
-        // Token is valid; rotate: revoke old, create new
+        // Revoke the used token, then issue a fresh one
         refreshToken.setRevoked(true);
         refreshTokenRepository.save(refreshToken);
 

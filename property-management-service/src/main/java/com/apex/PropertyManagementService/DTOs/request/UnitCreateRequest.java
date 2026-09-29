@@ -1,6 +1,5 @@
 package com.apex.PropertyManagementService.DTOs.request;
 
-import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import lombok.Data;
 
@@ -9,10 +8,11 @@ import java.util.UUID;
 
 @Data
 public class UnitCreateRequest {
-    @NotBlank
+
+    // Optional — backend auto-generates (A, B, C...) when missing
     private String unitNumber;
 
-    @NotNull
+    @NotNull(message = "Property ID is required")
     private UUID propertyId;
 
     private Integer bedrooms;

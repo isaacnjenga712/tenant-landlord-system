@@ -30,11 +30,44 @@ public class TicketCommandServiceImpl implements TicketCommandService {
 
     @Override
     @Transactional
-    public TicketResponse createTicket(TicketCreateRequest request, UUID tenantId, UUID landlordId) {
+    public TicketResponse createTicket(TicketCreateRequest request,
+                                       String userIdHeader,
+                                       String userRole,
+                                       String tenantHeader) {
+        if (userIdHeader == null || userIdHeader.isBlank()) {
+            throw new IllegalArgumentException("Missing X-User-Id header");
+        }
+
+        UUID callerId;
+        try {
+            callerId = UUID.fromString(userIdHeader.trim());
+        } catch (IllegalArgumentException e) {
+            throw new IllegalArgumentException("X-User-Id is not a valid UUID: " + userIdHeader);
+        }
+
+        UUID tenantId;
+        UUID landlordId;
+
+        if ("LANDLORD".equalsIgnoreCase(userRole)) {
+            landlordId = callerId;
+            tenantId = request.getTenantId();
+            if (tenantId == null) {
+                throw new IllegalArgumentException(
+                        "tenantId is required when a landlord creates a ticket");
+            }
+        } else {
+            // Default: TENANT creating their own ticket
+            tenantId = callerId;
+            landlordId = request.getLandlordId();
+            if (landlordId == null) {
+                throw new IllegalArgumentException(
+                        "landlordId is required when a tenant creates a ticket");
+            }
+        }
+
         Ticket ticket = mapper.toEntity(request, tenantId, landlordId);
         Ticket saved = ticketRepository.save(ticket);
 
-        // ✅ Use builder – works regardless of constructor signature
         TicketCreatedEvent event = new TicketCreatedEvent();
         event.setTicketId(saved.getId());
         event.setUnitId(saved.getUnitId());
@@ -44,7 +77,8 @@ public class TicketCommandServiceImpl implements TicketCommandService {
         event.setCorrelationId(UUID.randomUUID());
         eventPublisher.publishTicketCreated(event, saved.getTenantId());
 
-        log.info("Ticket created: {}", saved.getId());
+        log.info("Ticket created: {} by {} tenantId={} landlordId={}",
+                saved.getId(), userRole, tenantId, landlordId);
         return mapper.toResponse(saved);
     }
 
@@ -69,18 +103,18 @@ public class TicketCommandServiceImpl implements TicketCommandService {
         }
         Ticket updated = ticketRepository.save(ticket);
 
-        if (updated.getStatus() == TicketStatus.RESOLVED || updated.getStatus() == TicketStatus.CLOSED) {
-            // ✅ Use builder
-        	TicketResolvedEvent event = new TicketResolvedEvent();
-        	event.setTicketId(updated.getId());
-        	event.setUnitId(updated.getUnitId());
-        	event.setTenantId(updated.getTenantId());
-        	event.setTitle(updated.getTitle());
-        	event.setCorrelationId(UUID.randomUUID());
+        if (updated.getStatus() == TicketStatus.RESOLVED
+                || updated.getStatus() == TicketStatus.CLOSED) {
+            TicketResolvedEvent event = new TicketResolvedEvent();
+            event.setTicketId(updated.getId());
+            event.setUnitId(updated.getUnitId());
+            event.setTenantId(updated.getTenantId());
+            event.setTitle(updated.getTitle());
+            event.setCorrelationId(UUID.randomUUID());
             eventPublisher.publishTicketResolved(event, updated.getTenantId());
         }
 
-        log.info("Ticket status updated: {}", updated.getId());
+        log.info("Ticket status updated: {} → {}", updated.getId(), status);
         return mapper.toResponse(updated);
     }
 

@@ -35,15 +35,26 @@ public class UnitServiceImpl implements UnitService {
         Property property = propertyRepository.findById(request.getPropertyId())
                 .orElseThrow(() -> new ResourceNotFoundException("Property not found: " + request.getPropertyId()));
 
-        unitRepository.findByUnitNumber(request.getUnitNumber())
-                .ifPresent(u -> { throw new IllegalArgumentException("Unit number already exists: " + request.getUnitNumber()); });
+        // Auto-generate unit number if the client didn't supply one
+        String requestedNumber = request.getUnitNumber();
+        final String unitNumber;
+        if (requestedNumber == null || requestedNumber.isBlank()) {
+            long existing = unitRepository.findByPropertyId(property.getId()).size();
+            unitNumber = String.valueOf((char) ('A' + existing)); // A, B, C…
+        } else {
+            unitNumber = requestedNumber;
+        }
+
+        unitRepository.findByUnitNumber(unitNumber)
+                .ifPresent(u -> { throw new IllegalArgumentException("Unit number already exists: " + unitNumber); });
 
         Unit unit = mapper.toEntity(request);
+        unit.setUnitNumber(unitNumber);
         unit.setProperty(property);
         unit.setStatus(UnitStatus.AVAILABLE);
 
         Unit saved = unitRepository.save(unit);
-        log.info("Unit created: {}", saved.getId());
+        log.info("Unit created: {} number={}", saved.getId(), unitNumber);
         return mapper.toResponse(saved);
     }
 
@@ -145,7 +156,6 @@ public class UnitServiceImpl implements UnitService {
             throw new IllegalStateException("Unit already occupied");
         }
         unit.setStatus(UnitStatus.OCCUPIED);
-        // ✅ Convert UUID to String
         unit.setCurrentTenantId(tenantId.toString());
         Unit updated = unitRepository.save(unit);
         log.info("Tenant {} assigned to unit {}", tenantId, updated.getId());

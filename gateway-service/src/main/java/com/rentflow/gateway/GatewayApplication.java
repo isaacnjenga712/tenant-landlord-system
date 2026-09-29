@@ -55,7 +55,10 @@ public class GatewayApplication {
 
             // ---------- Maintenance tickets ----------
             .route("maintenance", r -> r
-                .path("/api/v1/maintenance/**")
+                .path(
+                    "/api/v1/maintenance/**",
+                    "/api/v1/tickets/**"
+                )
                 .uri("lb://MAINTENANCE-TICKET-SERVICE"))
 
             // ---------- Notifications ----------

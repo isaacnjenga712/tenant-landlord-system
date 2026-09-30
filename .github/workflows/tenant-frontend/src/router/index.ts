@@ -50,7 +50,7 @@ const routes: RouteRecordRaw[] = [
   { path: '/landlord/invoices', name: 'landlord-invoices', component: () => import('../views/Landlord/Invoices.vue'), meta: { requiresAuth: true, roles: ['LANDLORD'] } },
   { path: '/landlord/deposits', name: 'landlord-deposits', component: () => import('../views/Landlord/Deposits.vue'), meta: { requiresAuth: true, roles: ['LANDLORD'] } },
   { path: '/landlord/maintenance', name: 'landlord-maintenance', component: () => import('../views/Landlord/Maintenance.vue'), meta: { requiresAuth: true, roles: ['LANDLORD'] } },
-
+  { path: '/landlord/splits', name: 'landlord-splits', component: () => import('../views/Landlord/Splits.vue'), meta: { requiresAuth: true, roles: ['LANDLORD'] } },
   // ---------- Admin ----------
   { path: '/admin/users', name: 'admin-users', component: () => import('../views/Admin/Users.vue'), meta: { requiresAuth: true, roles: ['ADMIN'] } },
   { path: '/admin/analytics', name: 'admin-analytics', component: () => import('../views/Admin/Analytics.vue'), meta: { requiresAuth: true, roles: ['ADMIN'] } },

@@ -7,6 +7,7 @@ import com.apex.PaymentService.module.Invoice.enums.InvoiceStatus;
 import com.apex.PaymentService.module.Invoice.service.InvoiceService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
@@ -21,31 +22,23 @@ import java.util.UUID;
 @RestController
 @RequestMapping("/api/v1/invoices")
 @RequiredArgsConstructor
+@Slf4j
 public class InvoiceController {
 
     private final InvoiceService service;
 
     // ---------- CRUD Endpoints ----------
 
-    /**
-     * Creates a new invoice.
-     */
     @PostMapping
     public ResponseEntity<InvoiceResponseDto> create(@Valid @RequestBody InvoiceCreateDto dto) {
         return ResponseEntity.status(HttpStatus.CREATED).body(service.createInvoice(dto));
     }
 
-    /**
-     * Retrieves an invoice by its UUID.
-     */
     @GetMapping("/{id}")
     public ResponseEntity<InvoiceResponseDto> getById(@PathVariable UUID id) {
         return ResponseEntity.ok(service.getInvoice(id));
     }
 
-    /**
-     * Retrieves an invoice by its invoice number.
-     */
     @GetMapping("/number/{invoiceNumber}")
     public ResponseEntity<InvoiceResponseDto> getByNumber(@PathVariable String invoiceNumber) {
         return ResponseEntity.ok(service.getInvoiceByNumber(invoiceNumber));
@@ -53,18 +46,23 @@ public class InvoiceController {
 
     /**
      * Lists invoices with optional filters and pagination.
+     * Caller identity (X-User-Id / X-User-Role) is accepted and logged; frontend
+     * is responsible for passing the correct leaseId filter today.
      */
     @GetMapping
     public ResponseEntity<Page<InvoiceResponseDto>> list(
             @RequestParam(required = false) UUID leaseId,
             @RequestParam(required = false) InvoiceStatus status,
+            @RequestHeader(value = "X-User-Id", required = false) String userHeader,
+            @RequestHeader(value = "X-User-Role", required = false) String userRole,
             @PageableDefault(size = 20, sort = "createdAt", direction = Sort.Direction.DESC) Pageable pageable) {
+
+        log.debug("listInvoices: leaseId={} status={} caller={} role={}",
+                leaseId, status, userHeader, userRole);
+
         return ResponseEntity.ok(service.listInvoices(leaseId, status, pageable));
     }
 
-    /**
-     * Partially updates an invoice.
-     */
     @PatchMapping("/{id}")
     public ResponseEntity<InvoiceResponseDto> update(
             @PathVariable UUID id,
@@ -72,9 +70,6 @@ public class InvoiceController {
         return ResponseEntity.ok(service.updateInvoice(id, dto));
     }
 
-    /**
-     * Voids an invoice (only if not paid).
-     */
     @PatchMapping("/{id}/void")
     public ResponseEntity<Void> voidInvoice(@PathVariable UUID id) {
         service.voidInvoice(id);
@@ -83,9 +78,6 @@ public class InvoiceController {
 
     // ---------- Payment Integration Endpoints ----------
 
-    /**
-     * Applies a payment to an invoice and returns the updated invoice.
-     */
     @PatchMapping("/{id}/pay")
     public ResponseEntity<InvoiceResponseDto> applyPayment(
             @PathVariable UUID id,
@@ -93,9 +85,6 @@ public class InvoiceController {
         return ResponseEntity.ok(service.applyPaymentAndGetInvoice(id, amount));
     }
 
-    /**
-     * Applies a late fee to an invoice.
-     */
     @PatchMapping("/{id}/late-fee")
     public ResponseEntity<Void> applyLateFee(
             @PathVariable UUID id,
@@ -104,9 +93,6 @@ public class InvoiceController {
         return ResponseEntity.noContent().build();
     }
 
-    /**
-     * Marks all overdue invoices (scheduled job / manual trigger).
-     */
     @PostMapping("/mark-overdue")
     public ResponseEntity<Void> markOverdue() {
         service.markOverdueInvoices();

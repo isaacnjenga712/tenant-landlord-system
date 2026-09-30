@@ -19,7 +19,7 @@ public class GatewayApplication {
     public RouteLocator routes(RouteLocatorBuilder builder) {
         return builder.routes()
 
-            // ---------- Public auth endpoints (login, register, refresh) ----------
+            // ---------- Public auth endpoints ----------
             .route("auth", r -> r
                 .path("/api/v1/auth/**")
                 .uri("lb://AUTH-SERVICE"))
@@ -48,7 +48,21 @@ public class GatewayApplication {
                 .path("/api/v1/payments/**")
                 .uri("lb://PAYMENT-SERVICE"))
 
-            // ---------- M-Pesa STK push (if separate service) ----------
+            // ---------- Invoices + related billing (payment-service) ----------
+            .route("invoices", r -> r
+                .path(
+                    "/api/v1/invoices/**",
+                    "/api/v1/invoice-line-items/**",
+                    "/api/v1/security-deposits/**",
+                    "/api/v1/deposit-deductions/**",
+                    "/api/v1/payment-splits/**",
+                    "/api/v1/payment-methods/**",
+                    "/api/v1/payment-accounts/**",
+                    "/api/v1/audit-logs/**"
+                )
+                .uri("lb://PAYMENT-SERVICE"))
+
+            // ---------- M-Pesa STK push ----------
             .route("mpesa", r -> r
                 .path("/api/v1/mpesa/**")
                 .uri("lb://MPESA-SERVICE"))

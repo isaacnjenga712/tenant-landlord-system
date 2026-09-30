@@ -39,6 +39,7 @@ const routes: RouteRecordRaw[] = [
   { path: '/tenant/my-lease', name: 'tenant-lease', component: () => import('../views/Tenant/MyLease.vue'), meta: { requiresAuth: true, roles: ['TENANT'] } },
   { path: '/tenant/payments', name: 'tenant-payments', component: () => import('../views/Tenant/Payments.vue'), meta: { requiresAuth: true, roles: ['TENANT'] } },
   { path: '/tenant/invoices', name: 'tenant-invoices', component: () => import('../views/Tenant/Invoices.vue'), meta: { requiresAuth: true, roles: ['TENANT'] } },
+  { path: '/tenant/deposit', name: 'tenant-deposit', component: () => import('../views/Tenant/Deposit.vue'), meta: { requiresAuth: true, roles: ['TENANT'] } },
   { path: '/tenant/maintenance', name: 'tenant-maintenance', component: () => import('../views/Tenant/Maintenance.vue'), meta: { requiresAuth: true, roles: ['TENANT'] } },
 
   // ---------- Landlord ----------
@@ -47,6 +48,7 @@ const routes: RouteRecordRaw[] = [
   { path: '/landlord/applications', name: 'landlord-applications', component: () => import('../views/Landlord/Applications.vue'), meta: { requiresAuth: true, roles: ['LANDLORD'] } },
   { path: '/landlord/tenants', name: 'landlord-tenants', component: () => import('../views/Landlord/Tenants.vue'), meta: { requiresAuth: true, roles: ['LANDLORD'] } },
   { path: '/landlord/invoices', name: 'landlord-invoices', component: () => import('../views/Landlord/Invoices.vue'), meta: { requiresAuth: true, roles: ['LANDLORD'] } },
+  { path: '/landlord/deposits', name: 'landlord-deposits', component: () => import('../views/Landlord/Deposits.vue'), meta: { requiresAuth: true, roles: ['LANDLORD'] } },
   { path: '/landlord/maintenance', name: 'landlord-maintenance', component: () => import('../views/Landlord/Maintenance.vue'), meta: { requiresAuth: true, roles: ['LANDLORD'] } },
 
   // ---------- Admin ----------

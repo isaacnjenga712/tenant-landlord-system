@@ -8,6 +8,7 @@ import com.apex.PaymentService.module.Invoice.dto.response.InvoiceResponseDto;
 import com.apex.PaymentService.module.Invoice.entity.Invoice;
 import com.apex.PaymentService.module.Invoice.enums.InvoiceStatus;
 import com.apex.PaymentService.module.Invoice.mapper.InvoiceMapper;
+import com.apex.PaymentService.module.Invoice.producer.InvoiceEventProducer;
 import com.apex.PaymentService.module.Invoice.repository.InvoiceRepository;
 import com.apex.PaymentService.module.Invoice.service.InvoiceService;
 import com.apex.PaymentService.module.Invoice.service.external.LeaseValidationService;
@@ -24,7 +25,6 @@ import org.springframework.transaction.annotation.Transactional;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.UUID;
-
 import java.util.List;
 
 @Service
@@ -35,6 +35,7 @@ public class InvoiceServiceImpl implements InvoiceService {
     private final InvoiceRepository repository;
     private final InvoiceMapper mapper;
     private final LeaseValidationService leaseValidationService;
+    private final InvoiceEventProducer invoiceEventProducer;
 
     // ---------- CRUD ----------
 
@@ -47,12 +48,25 @@ public class InvoiceServiceImpl implements InvoiceService {
         if (repository.findByInvoiceNumber(dto.getInvoiceNumber()).isPresent()) {
             throw new BusinessException("Invoice number already exists: " + dto.getInvoiceNumber());
         }
+
         Invoice invoice = mapper.toEntity(dto);
         invoice.setPaidAmount(dto.getPaidAmount() != null ? dto.getPaidAmount() : BigDecimal.ZERO);
         invoice.updateStatus();
         Invoice saved = repository.save(invoice);
         log.info("Created invoice: {} for lease: {}", saved.getInvoiceNumber(), saved.getLeaseId());
-        return mapper.toResponseDto(saved);
+
+        InvoiceResponseDto response = mapper.toResponseDto(saved);
+
+        // Publish event — resolve tenant + landlord from lease-service (fail-soft)
+        try {
+            LeaseValidationService.LeaseInfo info = leaseValidationService.getLease(dto.getLeaseId());
+            invoiceEventProducer.publishInvoiceCreated(response, info.tenantId(), info.landlordId());
+        } catch (Exception e) {
+            log.warn("Failed to publish InvoiceCreatedEvent for {}: {}",
+                    response.getInvoiceNumber(), e.getMessage());
+        }
+
+        return response;
     }
 
     @Override
@@ -144,10 +158,6 @@ public class InvoiceServiceImpl implements InvoiceService {
         return repository.existsById(invoiceId);
     }
 
-    /**
-     * Applies a payment to the invoice (void method – used by Payment module).
-     * Uses optimistic locking retry.
-     */
     @Override
     @Transactional
     @Retryable(value = OptimisticLockingFailureException.class, maxAttempts = 3, backoff = @Backoff(delay = 100))
@@ -159,10 +169,6 @@ public class InvoiceServiceImpl implements InvoiceService {
         log.info("Applied payment of {} to invoice {}", amount, invoiceId);
     }
 
-    /**
-     * Reverses a payment on the invoice (void method – used by Payment module).
-     * Uses optimistic locking retry.
-     */
     @Override
     @Transactional
     @Retryable(value = OptimisticLockingFailureException.class, maxAttempts = 3, backoff = @Backoff(delay = 100))
@@ -174,9 +180,6 @@ public class InvoiceServiceImpl implements InvoiceService {
         log.info("Reversed payment of {} on invoice {}", amount, invoiceId);
     }
 
-    /**
-     * Applies a payment and returns the updated invoice DTO – used by the controller.
-     */
     @Override
     @Transactional
     public InvoiceResponseDto applyPaymentAndGetInvoice(UUID id, BigDecimal amount) {

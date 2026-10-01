@@ -35,7 +35,8 @@ public class KafkaNotificationConsumer {
                 "payment.events.failed",
                 "payment.events.initiated",
                 "mpesa.events.stk.requested",
-                "mpesa.events.stk.result"
+                "mpesa.events.stk.result",
+                "invoice.invoice.created"
             },
             groupId = "${spring.kafka.consumer.group-id}"
     )

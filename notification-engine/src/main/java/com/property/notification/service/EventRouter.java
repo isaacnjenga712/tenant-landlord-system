@@ -36,9 +36,17 @@ public class EventRouter {
         String summary;
         String detail;
         switch (type) {
+            case LEASE_CREATED -> {
+                summary = "Your lease application has been received.";
+                detail = "The landlord will review it shortly.";
+            }
             case LEASE_APPROVED -> {
                 summary = "Your lease has been approved.";
-                detail = summary + " You can now view it in the app.";
+                detail = "Welcome home! You can view the lease in the app.";
+            }
+            case LEASE_TERMINATED -> {
+                summary = "Your lease has been terminated.";
+                detail = "Check the app for details.";
             }
             case INVOICE_CREATED -> {
                 summary = "A new invoice has been issued.";

@@ -26,6 +26,7 @@ public class KafkaNotificationConsumer {
             topics = {
                 "auth.user.events",
                 "lease.lease.created",
+                "lease.lease.approved",
                 "lease.lease.terminated",
                 "maintenance.ticket.created",
                 "maintenance.ticket.resolved",

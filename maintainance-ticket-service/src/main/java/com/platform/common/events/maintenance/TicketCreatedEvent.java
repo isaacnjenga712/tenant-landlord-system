@@ -17,6 +17,7 @@ public class TicketCreatedEvent implements Serializable {
     private UUID ticketId;
     private UUID unitId;
     private UUID tenantId;
+    private UUID landlordId;
     private String title;
     private String priority;
     private UUID correlationId;
@@ -31,9 +32,4 @@ public class TicketCreatedEvent implements Serializable {
         this.priority = priority;
         this.correlationId = correlationId;
     }
-
-	public void setPriority(String name) {
-		// TODO Auto-generated method stub
-		throw new UnsupportedOperationException("Unimplemented method 'setPriority'");
-	}
 }

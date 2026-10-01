@@ -17,6 +17,7 @@ public class TicketResolvedEvent implements Serializable {
     private UUID ticketId;
     private UUID unitId;
     private UUID tenantId;
+    private UUID landlordId;
     private String title;
     private UUID correlationId;
     private String eventType;

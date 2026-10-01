@@ -72,12 +72,12 @@ public class TicketCommandServiceImpl implements TicketCommandService {
         event.setTicketId(saved.getId());
         event.setUnitId(saved.getUnitId());
         event.setTenantId(saved.getTenantId());
+        event.setLandlordId(saved.getLandlordId());   // ← added
         event.setTitle(saved.getTitle());
         event.setPriority(saved.getPriority().name());
         event.setCorrelationId(UUID.randomUUID());
-        event.setEventType("maintenance.ticket.created");   // ← add this
+        event.setEventType("maintenance.ticket.created");
         eventPublisher.publishTicketCreated(event, saved.getTenantId());
-
         log.info("Ticket created: {} by {} tenantId={} landlordId={}",
                 saved.getId(), userRole, tenantId, landlordId);
         return mapper.toResponse(saved);
@@ -110,9 +110,10 @@ public class TicketCommandServiceImpl implements TicketCommandService {
             event.setTicketId(updated.getId());
             event.setUnitId(updated.getUnitId());
             event.setTenantId(updated.getTenantId());
+            event.setLandlordId(updated.getLandlordId());   // ← added
             event.setTitle(updated.getTitle());
             event.setCorrelationId(UUID.randomUUID());
-            event.setEventType("maintenance.ticket.resolved");   // ← add this
+            event.setEventType("maintenance.ticket.resolved");
             eventPublisher.publishTicketResolved(event, updated.getTenantId());
         }
 

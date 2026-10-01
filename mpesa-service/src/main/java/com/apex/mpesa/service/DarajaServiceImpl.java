@@ -4,6 +4,7 @@ import com.apex.mpesa.config.DarajaConfig;
 import com.apex.mpesa.dto.*;
 import com.apex.mpesa.entity.Transaction;
 import com.apex.mpesa.entity.TransactionStatus;
+import com.apex.mpesa.producer.MpesaEventProducer;
 import com.apex.mpesa.repository.TransactionRepository;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -32,6 +33,7 @@ public class DarajaServiceImpl implements DarajaService {
 
     private final DarajaConfig darajaConfig;
     private final TransactionRepository transactionRepository;
+    private final MpesaEventProducer mpesaEventProducer;
     private final RestTemplate restTemplate = new RestTemplate();
     private final ObjectMapper objectMapper = new ObjectMapper();
 
@@ -172,6 +174,14 @@ public class DarajaServiceImpl implements DarajaService {
         }
 
         transactionRepository.save(transaction);
+
+        // Publish event to Kafka (fail-soft — callback must not fail if Kafka is down)
+        try {
+            mpesaEventProducer.publishStkResult(transaction);
+        } catch (Exception e) {
+            log.warn("Failed to publish StkResultEvent for {}: {}",
+                    transaction.getCheckoutRequestId(), e.getMessage());
+        }
     }
 
     // -------- QUERY STATUS --------

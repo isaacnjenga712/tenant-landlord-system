@@ -25,6 +25,8 @@ import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.UUID;
 
+import java.util.List;
+
 @Service
 @RequiredArgsConstructor
 @Slf4j
@@ -206,7 +208,22 @@ public class InvoiceServiceImpl implements InvoiceService {
     @Transactional
     public void markOverdueInvoices() {
         LocalDate today = LocalDate.now();
-        int updated = repository.markOverdueInvoices(today);
-        log.info("Marked {} invoices as overdue", updated);
+        List<Invoice> candidates = repository.findByStatusIn(
+                List.of(InvoiceStatus.pending, InvoiceStatus.partial));
+
+        int updated = 0;
+        for (Invoice inv : candidates) {
+            if (inv.getDueDate() == null) continue;
+
+            int grace = inv.getGracePeriodDays() != null ? inv.getGracePeriodDays() : 0;
+            LocalDate overdueThreshold = inv.getDueDate().plusDays(grace);
+
+            if (today.isAfter(overdueThreshold)) {
+                inv.setStatus(InvoiceStatus.overdue);
+                repository.save(inv);
+                updated++;
+            }
+        }
+        log.info("Marked {} invoices as overdue (checked {} candidates)", updated, candidates.size());
     }
 }

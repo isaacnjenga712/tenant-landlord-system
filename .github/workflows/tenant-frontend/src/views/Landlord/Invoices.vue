@@ -61,7 +61,7 @@
           </div>
 
           <div v-if="!lineItems.length" class="text-sm text-slate-500 py-2">
-            No line items. Click “+ Add line” to itemize.
+            No line items. Click "+ Add line" to itemize.
           </div>
 
           <div v-else class="space-y-2">
@@ -147,8 +147,23 @@
         </button>
       </div>
 
+      <!-- Filter tabs -->
+      <div class="flex gap-2 flex-wrap">
+        <button
+          v-for="tab in filterTabs"
+          :key="tab.value"
+          :class="filterButtonClass(filterStatus === tab.value)"
+          @click="filterStatus = tab.value"
+        >
+          {{ tab.label }}
+          <span v-if="tab.count > 0" class="ml-1 text-xs opacity-70">({{ tab.count }})</span>
+        </button>
+      </div>
+
       <div v-if="loading" class="text-slate-500">Loading…</div>
-      <div v-else-if="!invoices.length" class="card p-6 text-slate-500">No invoices yet.</div>
+      <div v-else-if="!filteredInvoices.length" class="card p-6 text-slate-500">
+        No invoices match this filter.
+      </div>
       <div v-else class="card overflow-hidden">
         <table class="min-w-full text-left text-sm">
           <thead class="bg-slate-50 text-slate-700">
@@ -157,12 +172,12 @@
               <th class="px-5 py-3 font-medium">Number</th>
               <th class="px-5 py-3 font-medium">Period</th>
               <th class="px-5 py-3 font-medium">Due</th>
-              <th class="px-5 py-3 font-medium">Amount</th>
+              <th class="px-5 py-3 font-medium">Progress</th>
               <th class="px-5 py-3 font-medium">Status</th>
             </tr>
           </thead>
           <tbody>
-            <template v-for="inv in invoices" :key="inv.id">
+            <template v-for="inv in filteredInvoices" :key="inv.id">
               <tr
                 class="border-t border-slate-200 cursor-pointer hover:bg-slate-50"
                 @click="toggleExpand(inv.id)"
@@ -173,7 +188,19 @@
                 <td class="px-5 py-3 font-mono text-xs">{{ inv.invoiceNumber }}</td>
                 <td class="px-5 py-3 text-xs">{{ inv.periodStart }} → {{ inv.periodEnd }}</td>
                 <td class="px-5 py-3 text-xs">{{ inv.dueDate }}</td>
-                <td class="px-5 py-3">KSh {{ formatMoney(inv.totalAmount) }}</td>
+                <td class="px-5 py-3">
+                  <div class="flex items-center gap-2 min-w-[180px]">
+                    <div class="flex-1 h-1.5 rounded-full bg-slate-200 overflow-hidden">
+                      <div
+                        :class="progressBarClass(inv.status)"
+                        :style="{ width: progressPct(inv) + '%' }"
+                      ></div>
+                    </div>
+                    <span class="text-xs text-slate-600 whitespace-nowrap">
+                      {{ formatMoney(inv.paidAmount) }} / {{ formatMoney(inv.totalAmount) }}
+                    </span>
+                  </div>
+                </td>
                 <td class="px-5 py-3">
                   <span :class="statusClass(inv.status)">{{ inv.status.toUpperCase() }}</span>
                 </td>
@@ -244,6 +271,28 @@ const expandedId = ref<string | null>(null)
 const itemsByInvoice = ref<Record<string, InvoiceLineItem[]>>({})
 const itemsLoading = ref(false)
 
+const filterStatus = ref<'all' | 'pending' | 'partial' | 'overdue' | 'paid'>('all')
+
+const filterTabs = computed(() => {
+  const counts = { pending: 0, partial: 0, overdue: 0, paid: 0 }
+  invoices.value.forEach(i => {
+    if (i.status in counts) counts[i.status as keyof typeof counts]++
+  })
+  return [
+    { value: 'all' as const, label: 'All', count: invoices.value.length },
+    { value: 'pending' as const, label: 'Pending', count: counts.pending },
+    { value: 'partial' as const, label: 'Partial', count: counts.partial },
+    { value: 'overdue' as const, label: 'Overdue', count: counts.overdue },
+    { value: 'paid' as const, label: 'Paid', count: counts.paid },
+  ]
+})
+
+const filteredInvoices = computed(() =>
+  filterStatus.value === 'all'
+    ? invoices.value
+    : invoices.value.filter(i => i.status === filterStatus.value),
+)
+
 const today = new Date()
 const monthStart = new Date(today.getFullYear(), today.getMonth(), 1).toISOString().split('T')[0]
 const monthEnd = new Date(today.getFullYear(), today.getMonth() + 1, 0).toISOString().split('T')[0]
@@ -258,6 +307,25 @@ const form = ref({
 })
 
 function formatMoney(n: number | undefined) { return Number(n || 0).toLocaleString() }
+
+function progressPct(inv: Invoice): number {
+  if (!inv.totalAmount) return 0
+  return Math.min(100, Math.round(((inv.paidAmount || 0) / inv.totalAmount) * 100))
+}
+
+function progressBarClass(status: string) {
+  if (status === 'paid') return 'h-full bg-emerald-500 transition-all'
+  if (status === 'overdue') return 'h-full bg-rose-500 transition-all'
+  if (status === 'partial') return 'h-full bg-blue-500 transition-all'
+  return 'h-full bg-amber-500 transition-all'
+}
+
+function filterButtonClass(active: boolean) {
+  const base = 'rounded border px-3 py-1.5 text-xs font-medium transition-colors'
+  return active
+    ? `${base} bg-slate-900 text-white border-slate-900`
+    : `${base} bg-white text-slate-700 border-slate-300 hover:bg-slate-50`
+}
 
 function statusClass(status: string) {
   const base = 'rounded px-2 py-0.5 text-xs font-medium'
@@ -358,7 +426,6 @@ async function submit() {
     error.value = 'Lease and amount are required'
     return
   }
-  // Validate line items
   const invalid = lineItems.value.find(li => !li.description.trim() || li.unitPrice <= 0)
   if (lineItems.value.length && invalid) {
     error.value = 'Each line item needs a description and a unit price > 0'
@@ -367,12 +434,10 @@ async function submit() {
 
   submitting.value = true
   try {
-    // If line items exist, use the sum as total
     if (lineItems.value.length) {
       form.value.totalAmount = lineItemsTotal.value
     }
 
-    // 1. Create the invoice
     const { data: inv } = await invoiceApi.create({
       leaseId: form.value.leaseId,
       invoiceNumber: generateInvoiceNumber(),
@@ -383,7 +448,6 @@ async function submit() {
       paidAmount: 0,
     })
 
-    // 2. Create the line items
     for (const li of lineItems.value) {
       await invoiceLineItemApi.create({
         invoiceId: inv.id,

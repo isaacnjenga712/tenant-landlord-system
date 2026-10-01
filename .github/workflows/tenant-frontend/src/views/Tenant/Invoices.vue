@@ -24,12 +24,28 @@
               <p class="text-sm text-slate-500 mt-1 ml-5">
                 {{ inv.periodStart }} → {{ inv.periodEnd }} · Due {{ inv.dueDate }}
               </p>
-              <p class="text-xl font-bold text-slate-900 mt-2 ml-5">
-                KSh {{ formatMoney(inv.totalAmount) }}
-              </p>
-              <p v-if="inv.paidAmount > 0" class="text-sm text-emerald-600 mt-1 ml-5">
-                Paid: KSh {{ formatMoney(inv.paidAmount) }}
-              </p>
+
+              <!-- Progress bar -->
+              <div class="mt-3 ml-5">
+                <div class="flex items-baseline justify-between text-sm">
+                  <span class="font-semibold text-slate-900">
+                    KSh {{ formatMoney(inv.paidAmount) }}
+                    <span class="font-normal text-slate-500">
+                      of KSh {{ formatMoney(inv.totalAmount) }}
+                    </span>
+                  </span>
+                  <span class="text-xs text-slate-500">{{ progressPct(inv) }}%</span>
+                </div>
+                <div class="mt-1 h-2 w-full rounded-full bg-slate-200 overflow-hidden">
+                  <div
+                    :class="progressBarClass(inv.status)"
+                    :style="{ width: progressPct(inv) + '%' }"
+                  ></div>
+                </div>
+                <p v-if="outstanding(inv) > 0" class="mt-1 text-xs text-slate-500">
+                  Balance: KSh {{ formatMoney(outstanding(inv)) }}
+                </p>
+              </div>
 
               <!-- Line items -->
               <div v-if="expandedId === inv.id" class="mt-3 ml-5 border-t border-slate-200 pt-3">
@@ -61,7 +77,7 @@
             </div>
 
             <div class="flex flex-col items-end gap-3 ml-4">
-              <span :class="statusClass(inv.status)">{{ inv.status.toUpperCase() }}</span>
+              <span :class="statusClass(inv.status)">{{ statusLabel(inv.status) }}</span>
               <button
                 v-if="inv.status !== 'paid' && inv.status !== 'voided'"
                 class="rounded bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700 disabled:opacity-50"
@@ -100,6 +116,32 @@ const itemsByInvoice = ref<Record<string, InvoiceLineItem[]>>({})
 const itemsLoading = ref(false)
 
 function formatMoney(n: number | undefined) { return Number(n || 0).toLocaleString() }
+
+function outstanding(inv: Invoice): number {
+  return Math.max(0, (inv.totalAmount || 0) - (inv.paidAmount || 0))
+}
+
+function progressPct(inv: Invoice): number {
+  if (!inv.totalAmount) return 0
+  return Math.min(100, Math.round(((inv.paidAmount || 0) / inv.totalAmount) * 100))
+}
+
+function progressBarClass(status: string) {
+  if (status === 'paid') return 'h-full bg-emerald-500 transition-all'
+  if (status === 'overdue') return 'h-full bg-rose-500 transition-all'
+  if (status === 'partial') return 'h-full bg-blue-500 transition-all'
+  return 'h-full bg-amber-500 transition-all'
+}
+
+function statusLabel(status: string) {
+  return {
+    pending: 'PENDING',
+    partial: 'PARTIAL',
+    paid: 'PAID',
+    overdue: 'OVERDUE',
+    voided: 'VOIDED',
+  }[status] ?? status.toUpperCase()
+}
 
 function statusClass(status: string) {
   const base = 'rounded px-2 py-0.5 text-xs font-medium'
@@ -158,6 +200,25 @@ async function toggleExpand(invoiceId: string) {
 }
 
 async function payInvoice(inv: Invoice) {
+  const balance = outstanding(inv)
+
+  // Prompt for amount, default to full outstanding balance
+  const amountStr = prompt(
+    `Amount to pay (outstanding: KSh ${balance.toLocaleString()})`,
+    String(balance),
+  )
+  if (!amountStr) return
+
+  const amount = Number(amountStr)
+  if (!amount || amount <= 0) {
+    notification.addToast('Invalid amount', 'error')
+    return
+  }
+  if (amount > balance) {
+    notification.addToast(`Amount exceeds balance (KSh ${balance.toLocaleString()})`, 'error')
+    return
+  }
+
   const rawPhone = prompt('Enter M-Pesa phone (e.g. 2547XXXXXXXX or 07XXXXXXXX)')
   if (!rawPhone) return
 
@@ -175,18 +236,16 @@ async function payInvoice(inv: Invoice) {
 
   payingId.value = inv.id
   try {
-    const amount = Math.round(inv.totalAmount - (inv.paidAmount || 0))
     await mpesaApi.stkPush({
       phone,
-      amount,
+      amount: Math.round(amount),
       leaseId: inv.leaseId,
       tenantId,
       accountReference: inv.invoiceNumber,
       transactionDesc: `Invoice ${inv.invoiceNumber}`,
     })
     notification.addToast('M-Pesa prompt sent — confirm on your phone', 'success')
-
-    pollAndMarkPaid(inv)
+    pollAndMarkPaid(inv, amount)
   } catch (err: any) {
     notification.addToast(err.response?.data?.message || 'Payment failed', 'error')
   } finally {
@@ -194,7 +253,7 @@ async function payInvoice(inv: Invoice) {
   }
 }
 
-function pollAndMarkPaid(inv: Invoice) {
+function pollAndMarkPaid(inv: Invoice, amount: number) {
   let attempts = 0
   const max = 20
   const timer = setInterval(async () => {
@@ -204,9 +263,8 @@ function pollAndMarkPaid(inv: Invoice) {
       const latest = data.find(t => t.status === 'SUCCESS')
       if (latest) {
         clearInterval(timer)
-        const amount = inv.totalAmount - (inv.paidAmount || 0)
         await invoiceApi.pay(inv.id, amount)
-        notification.addToast(`Invoice ${inv.invoiceNumber} marked paid`, 'success')
+        notification.addToast(`Applied KSh ${amount.toLocaleString()} to ${inv.invoiceNumber}`, 'success')
         await load()
       }
     } catch {

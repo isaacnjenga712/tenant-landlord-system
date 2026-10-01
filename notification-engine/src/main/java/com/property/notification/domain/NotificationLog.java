@@ -19,16 +19,16 @@ public class NotificationLog {
     @Id
     private String id;  // MongoDB ObjectId as String
 
-    private Long userId;
+    private Long userId;              // legacy — kept for back-compat, nullable
     private Channel channel;
     private Status status;
     private String eventType;
-    private String payload;    // can be a large string, MongoDB handles it
+    private String payload;           // raw event JSON
     private int attempts;
     private String errorMessage;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
 
-    public enum Channel { EMAIL, SMS, IN_APP }
+    public enum Channel { EMAIL, SMS, IN_APP, WHATSAPP }
     public enum Status { PENDING, SENT, FAILED }
 }

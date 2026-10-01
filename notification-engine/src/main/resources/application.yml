@@ -42,12 +42,9 @@ spring:
       auto-offset-reset: earliest
       enable-auto-commit: false
       key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
-      value-deserializer: org.springframework.kafka.support.serializer.JsonDeserializer
-      properties:
-        spring.json.trusted.packages: "com.platform.common.events.*,com.property.notification.*"
-        spring.json.use.type.headers: false
-        spring.json.value.default.type: java.util.Map
-        spring.json.type.mapping: "payment:com.property.notification.dto.PaymentEventDto,maintenance:com.property.notification.dto.MaintenanceEventDto,leaseCreated:com.platform.common.events.lease.LeaseCreatedEvent,leaseTerminated:com.platform.common.events.lease.LeaseTerminatedEvent,leaseCompensationRequired:com.platform.common.events.lease.LeaseCompensationRequiredEvent,ticketCreated:com.platform.common.events.maintenance.TicketCreatedEvent,ticketResolved:com.platform.common.events.maintenance.TicketResolvedEvent,paymentReceived:com.platform.common.events.billing.PaymentReceivedEvent,paymentFailed:com.platform.common.events.billing.PaymentFailedEvent,propertyRegistered:com.platform.common.events.property.PropertyRegisteredEvent,propertyUpdated:com.platform.common.events.property.PropertyUpdatedEvent"
+      # We consume raw JSON strings and parse manually in the listener.
+      # (No JsonDeserializer, no type mappings — see KafkaConfig.consumerFactory)
+      value-deserializer: org.apache.kafka.common.serialization.StringDeserializer
     listener:
       auto-startup: ${SPRING_KAFKA_LISTENER_AUTO_STARTUP:true}
       ack-mode: manual_immediate
@@ -75,20 +72,29 @@ app:
       maintenance: maintenance-events
       payment-received: payment.events.received
       payment-failed: payment.events.failed
-      lease-created: lease.events.created
-      lease-terminated: lease.events.terminated
-      lease-compensation-required: lease.events.compensation.required
-      ticket-created: maintenance.events.created
-      ticket-resolved: maintenance.events.resolved
-      property-registered: property.events.registered
-      property-updated: property.events.updated
+      lease-created: lease.lease.created
+      lease-terminated: lease.lease.terminated
+      ticket-created: maintenance.ticket.created
+      ticket-resolved: maintenance.ticket.resolved
+      property-registered: property.property.registered
+      user-events: auth.user.events
+      mpesa-requested: mpesa.events.stk.requested
+      mpesa-result: mpesa.events.stk.result
       notification-dlq: notification.events.dlq
 
+# ── Channel gateways ───────────────────────────────────────────
+# Leave URLs blank in dev — channels log only ([SMS MOCK] / [WHATSAPP MOCK]).
+# Set real provider URLs in prod via env vars.
 sms:
   gateway:
-    url: ${SMS_GATEWAY_URL:http://mock-sms-gateway/send}
+    url: ${SMS_GATEWAY_URL:}
     timeout: 5000
     retry-max: 3
+
+whatsapp:
+  gateway:
+    url: ${WHATSAPP_GATEWAY_URL:}
+  from: ${WHATSAPP_FROM:}
 
 resilience4j:
   retry:
@@ -142,9 +148,9 @@ management:
       percentiles-histogram:
         http.server.requests: true
       percentiles:
-        http.server.requests: 0.5, 0.95, 0.99
+        http.server.requests: 0.5,0.95,0.99
       slo:
-        http.server.requests: 100ms, 500ms, 1s, 5s
+        http.server.requests: 100ms,500ms,1s,5s
   prometheus:
     metrics:
       export:

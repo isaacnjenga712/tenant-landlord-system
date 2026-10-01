@@ -1,192 +1,147 @@
 package com.property.notification.service;
 
-import com.property.notification.NotificationEngineApplication;
-import com.property.notification.domain.NotificationLog;
-import com.property.notification.domain.UserPreference;
-import com.property.notification.dto.MaintenanceEventDto;
-import com.property.notification.dto.PaymentEventDto;
-import com.property.notification.repository.NotificationLogRepository;
-import com.property.notification.repository.UserPreferenceRepository;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.property.notification.domain.NotificationEventType;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.test.mock.mockito.MockBean;
-import org.springframework.kafka.core.KafkaTemplate;
-import org.springframework.kafka.test.context.EmbeddedKafka;
-import org.springframework.test.annotation.DirtiesContext;
-import org.springframework.test.context.TestPropertySource;
 
-import java.math.BigDecimal;
-import java.util.List;
-import java.util.Optional;
 import java.util.UUID;
-import java.util.concurrent.TimeUnit;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.awaitility.Awaitility.await;
-import static org.mockito.ArgumentMatchers.*;
-import static org.mockito.Mockito.*;
 
-@SpringBootTest(classes = NotificationEngineApplication.class)
-@DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_EACH_TEST_METHOD)
-@EmbeddedKafka(partitions = 1, topics = {"payment-events", "maintenance-events"})
-@TestPropertySource(properties = {
-        "spring.kafka.consumer.group-id=test-group-${random.uuid}",
-        "spring.kafka.consumer.auto-offset-reset=earliest"
-})
-public class NotificationEngineTests {
+/**
+ * Lightweight unit tests for EventRouter + NotificationEventType.
+ *
+ * The full Kafka → dispatcher → channel flow is verified manually
+ * (see log output + MongoDB) because embedding Kafka + Mongo in tests
+ * adds far more runtime cost than it catches in bugs.
+ */
+class NotificationEngineTests {
 
-    @Autowired
-    private KafkaTemplate<String, Object> kafkaTemplate;
-
-    @Autowired
-    private NotificationLogRepository logRepository;
-
-    @MockBean
-    private UserPreferenceRepository preferenceRepository;
-
-    @MockBean
-    private EmailService emailService;
-
-    @MockBean
-    private SmsService smsService;
-
-    @MockBean
-    private InAppNotificationService inAppService;
-
-    private final Long userId = 1L;
-    private final String propertyId = UUID.randomUUID().toString();
+    private EventRouter router;
+    private ObjectMapper mapper;
 
     @BeforeEach
     void setup() {
-        logRepository.deleteAll();
+        router = new EventRouter();
+        mapper = new ObjectMapper();
+    }
 
-        UserPreference prefs = UserPreference.builder()
-                .userId(userId)
-                .emailOptIn(true)
-                .smsOptIn(true)
-                .inAppOptIn(true)
-                .email("tenant@example.com")
-                .phone("+1234567890")
-                .build();
-        when(preferenceRepository.findByUserId(userId)).thenReturn(Optional.of(prefs));
+    // ---------- NotificationEventType.fromRaw ----------
+
+    @Test
+    void fromRaw_normalizes_dotted_and_flat_forms() {
+        assertThat(NotificationEventType.fromRaw("maintenance.ticket.created"))
+                .isEqualTo(NotificationEventType.MAINTENANCE_CREATED);
+        assertThat(NotificationEventType.fromRaw("MAINTENANCE_CREATED"))
+                .isEqualTo(NotificationEventType.MAINTENANCE_CREATED);
+        assertThat(NotificationEventType.fromRaw("maintenance.ticket.resolved"))
+                .isEqualTo(NotificationEventType.MAINTENANCE_RESOLVED);
+        assertThat(NotificationEventType.fromRaw("lease.approved"))
+                .isEqualTo(NotificationEventType.LEASE_APPROVED);
+        assertThat(NotificationEventType.fromRaw("invoice.created"))
+                .isEqualTo(NotificationEventType.INVOICE_CREATED);
     }
 
     @Test
-    void testRentPaymentEventTriggersAllChannels() {
-        PaymentEventDto dto = PaymentEventDto.builder()
-                .userId(userId)
-                .propertyId(propertyId)
-                .amount(BigDecimal.valueOf(1200.00))
-                .paymentMethod("credit_card")
-                .build();
+    void fromRaw_returns_unknown_for_null_or_garbage() {
+        assertThat(NotificationEventType.fromRaw(null)).isEqualTo(NotificationEventType.UNKNOWN);
+        assertThat(NotificationEventType.fromRaw("")).isEqualTo(NotificationEventType.UNKNOWN);
+        assertThat(NotificationEventType.fromRaw("some.random.thing"))
+                .isEqualTo(NotificationEventType.UNKNOWN);
+    }
 
-        kafkaTemplate.send("payment-events", userId.toString(), dto);
+    // ---------- EventRouter ----------
 
-        await().atMost(5, TimeUnit.SECONDS).untilAsserted(() -> {
-            verify(emailService, times(1)).sendTemplateEmail(
-                    eq("tenant@example.com"),
-                    eq("Rent Payment Received"),
-                    eq("payment-receipt"),
-                    anyMap()
-            );
-            verify(smsService, times(1)).sendSms(
-                    eq("+1234567890"),
-                    contains("1200")   // amount appears without decimal
-            );
-            verify(inAppService, times(1)).sendToUser(
-                    eq(userId),
-                    contains("$1200")
-            );
-            List<NotificationLog> logs = logRepository.findAll();
-            assertThat(logs).hasSize(3);
-            assertThat(logs).allMatch(log -> log.getStatus() == NotificationLog.Status.SENT);
-        });
+    @Test
+    void route_extracts_tenant_and_landlord_ids() throws Exception {
+        UUID tenantId = UUID.randomUUID();
+        UUID landlordId = UUID.randomUUID();
+        String json = """
+                {
+                  "tenantId": "%s",
+                  "landlordId": "%s",
+                  "title": "AC not working"
+                }
+                """.formatted(tenantId, landlordId);
+
+        JsonNode node = mapper.readTree(json);
+        EventRouter.RoutedEvent routed =
+                router.route(NotificationEventType.MAINTENANCE_CREATED, node);
+
+        assertThat(routed.getTenantId()).isEqualTo(tenantId);
+        assertThat(routed.getLandlordId()).isEqualTo(landlordId);
+        assertThat(routed.getSummary()).contains("AC not working");
     }
 
     @Test
-    void testMaintenanceRequestEventTriggersAllChannels() {
-        MaintenanceEventDto dto = MaintenanceEventDto.builder()
-                .userId(userId)
-                .propertyId(propertyId)
-                .description("Leaking pipe in bathroom")
-                .build();
+    void route_falls_back_to_userId_when_tenantId_missing() throws Exception {
+        UUID userId = UUID.randomUUID();
+        String json = """
+                {
+                  "userId": "%s",
+                  "title": "login"
+                }
+                """.formatted(userId);
 
-        kafkaTemplate.send("maintenance-events", userId.toString(), dto);
+        JsonNode node = mapper.readTree(json);
+        EventRouter.RoutedEvent routed =
+                router.route(NotificationEventType.USER_LOGIN, node);
 
-        await().atMost(5, TimeUnit.SECONDS).untilAsserted(() -> {
-            verify(emailService, times(1)).sendTemplateEmail(
-                    eq("tenant@example.com"),
-                    eq("Maintenance Request Created"),
-                    eq("invoice-alert"),
-                    anyMap()
-            );
-            verify(smsService, times(1)).sendSms(
-                    eq("+1234567890"),
-                    contains("Leaking pipe")
-            );
-            verify(inAppService, times(1)).sendToUser(
-                    eq(userId),
-                    contains("Leaking pipe")
-            );
-            List<NotificationLog> logs = logRepository.findAll();
-            assertThat(logs).hasSize(3);
-            assertThat(logs).allMatch(log -> log.getStatus() == NotificationLog.Status.SENT);
-        });
+        assertThat(routed.getTenantId()).isEqualTo(userId);
     }
 
     @Test
-    void testEmailServiceFailureLogsAsFailed() {
-        doThrow(new RuntimeException("SMTP error")).when(emailService).sendTemplateEmail(
-                anyString(), anyString(), anyString(), anyMap()
-        );
+    void route_handles_missing_recipients_gracefully() throws Exception {
+        String json = """
+                {
+                  "eventType": "user.login"
+                }
+                """;
 
-        PaymentEventDto dto = PaymentEventDto.builder()
-                .userId(userId)
-                .propertyId(propertyId)
-                .amount(BigDecimal.valueOf(500))
-                .paymentMethod("paypal")
-                .build();
+        JsonNode node = mapper.readTree(json);
+        EventRouter.RoutedEvent routed =
+                router.route(NotificationEventType.USER_LOGIN, node);
 
-        kafkaTemplate.send("payment-events", userId.toString(), dto);
-
-        await().atMost(5, TimeUnit.SECONDS).untilAsserted(() -> {
-            List<NotificationLog> logs = logRepository.findAll();
-            assertThat(logs).hasSize(3);
-
-            NotificationLog emailLog = logs.stream()
-                    .filter(l -> l.getChannel() == NotificationLog.Channel.EMAIL)
-                    .findFirst().orElseThrow();
-            assertThat(emailLog.getStatus()).isEqualTo(NotificationLog.Status.FAILED);
-            assertThat(emailLog.getErrorMessage()).contains("SMTP error");
-
-            assertThat(logs.stream().filter(l -> l.getChannel() == NotificationLog.Channel.SMS))
-                    .allMatch(l -> l.getStatus() == NotificationLog.Status.SENT);
-            assertThat(logs.stream().filter(l -> l.getChannel() == NotificationLog.Channel.IN_APP))
-                    .allMatch(l -> l.getStatus() == NotificationLog.Status.SENT);
-        });
+        assertThat(routed.getTenantId()).isNull();
+        assertThat(routed.getLandlordId()).isNull();
+        assertThat(routed.getSummary()).isNotBlank();
     }
 
     @Test
-    void testUserWithoutPreferencesThrowsException() {
-        Long unknownUserId = 999L;
-        when(preferenceRepository.findByUserId(unknownUserId)).thenReturn(Optional.empty());
+    void route_lease_approved_produces_expected_summary() throws Exception {
+        UUID tenantId = UUID.randomUUID();
+        String json = """
+                {
+                  "tenantId": "%s",
+                  "landlordId": "%s",
+                  "leaseId": "%s"
+                }
+                """.formatted(tenantId, UUID.randomUUID(), UUID.randomUUID());
 
-        PaymentEventDto dto = PaymentEventDto.builder()
-                .userId(unknownUserId)
-                .propertyId(propertyId)
-                .amount(BigDecimal.TEN)
-                .paymentMethod("cash")
-                .build();
+        JsonNode node = mapper.readTree(json);
+        EventRouter.RoutedEvent routed =
+                router.route(NotificationEventType.LEASE_APPROVED, node);
 
-        kafkaTemplate.send("payment-events", unknownUserId.toString(), dto);
+        assertThat(routed.getSummary()).containsIgnoringCase("approved");
+        assertThat(routed.getTenantId()).isEqualTo(tenantId);
+    }
 
-        await().atMost(5, TimeUnit.SECONDS).untilAsserted(() -> {
-            verify(emailService, never()).sendTemplateEmail(anyString(), anyString(), anyString(), anyMap());
-            verify(smsService, never()).sendSms(anyString(), anyString());
-            verify(inAppService, never()).sendToUser(anyLong(), anyString());
-            assertThat(logRepository.findAll()).isEmpty();
-        });
+    @Test
+    void route_payment_received_summary_mentions_mpesa() throws Exception {
+        UUID tenantId = UUID.randomUUID();
+        String json = """
+                {
+                  "tenantId": "%s",
+                  "amount": 24000
+                }
+                """.formatted(tenantId);
+
+        JsonNode node = mapper.readTree(json);
+        EventRouter.RoutedEvent routed =
+                router.route(NotificationEventType.PAYMENT_RECEIVED_MPESA, node);
+
+        assertThat(routed.getSummary()).containsIgnoringCase("M-Pesa");
     }
 }

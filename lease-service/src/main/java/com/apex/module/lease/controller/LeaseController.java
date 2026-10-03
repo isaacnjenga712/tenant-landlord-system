@@ -22,8 +22,8 @@ import java.util.UUID;
 @RequestMapping("/api/v1/leases")
 @Validated
 public class LeaseController {
-	
-	 private final LeaseService leaseService;
+
+	private final LeaseService leaseService;
 
 	LeaseController(LeaseService leaseService) {
 		this.leaseService = leaseService;
@@ -58,7 +58,6 @@ public class LeaseController {
 	    public ResponseEntity<LeaseResponse> terminateLease(@PathVariable UUID id,
 	                                                        @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate terminationDate) {
 	        leaseService.terminateLease(id, terminationDate);
-	        // Return the updated lease
 	        LeaseResponse response = leaseService.getLease(id);
 	        return ResponseEntity.ok(response);
 	    }
@@ -67,6 +66,12 @@ public class LeaseController {
 	    public ResponseEntity<LeaseResponse> renewLease(@PathVariable UUID id,
 	                                                    @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate newEndDate) {
 	        LeaseResponse response = leaseService.renewLease(id, newEndDate);
+	        return ResponseEntity.ok(response);
+	    }
+
+	    @PostMapping("/{id}/approve")
+	    public ResponseEntity<LeaseResponse> approveLease(@PathVariable UUID id) {
+	        LeaseResponse response = leaseService.approveLease(id);
 	        return ResponseEntity.ok(response);
 	    }
 
@@ -79,7 +84,23 @@ public class LeaseController {
 	            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
 	            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate,
 	            @RequestParam(defaultValue = "0") @Min(0) int page,
-	            @RequestParam(defaultValue = "20") @Min(1) int size) {
+	            @RequestParam(defaultValue = "20") @Min(1) int size,
+	            @RequestHeader(value = "X-User-Id", required = false) String userHeader,
+	            @RequestHeader(value = "X-User-Role", required = false) String userRole) {
+
+	        // Auto-scope to the caller's identity when role is known and no explicit filter
+	        if (userHeader != null && !userHeader.isBlank() && userRole != null) {
+	            try {
+	                UUID callerId = UUID.fromString(userHeader.trim());
+	                if ("TENANT".equalsIgnoreCase(userRole) && tenantId == null) {
+	                    tenantId = callerId;
+	                } else if ("LANDLORD".equalsIgnoreCase(userRole) && landlordId == null) {
+	                    landlordId = callerId;
+	                }
+	            } catch (IllegalArgumentException ignored) {
+	                // X-User-Id header not a UUID — leave filters as-is
+	            }
+	        }
 
 	        LeaseListResponse response = leaseService.listLeases(
 	                tenantId, landlordId, propertyId, status, startDate, endDate, page, size);

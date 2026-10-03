@@ -1,68 +1,79 @@
 package com.apex.module.lease.service.producer;
 
 import com.apex.module.lease.dto.response.LeaseResponse;
-import com.apex.module.lease.enums.LeaseEventType;
-import com.apex.module.lease.event.LeaseEvent;
-import com.apex.module.lease.event.LeaseEventPayload;
+import com.platform.common.events.lease.LeaseCreatedEvent;
+import com.platform.common.events.lease.LeaseTerminatedEvent;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.stereotype.Service;
 
-import java.time.LocalDateTime;
-import java.util.Objects;
+import java.time.LocalDate;
 import java.util.UUID;
 
 @Service
+@RequiredArgsConstructor
+@Slf4j
 public class LeaseEventProducer {
 
     private final KafkaTemplate<String, Object> kafkaTemplate;
 
-    private static final String PROPERTY_EVENTS_TOPIC = "property-events";
-    private static final String TENANT_EVENTS_TOPIC = "tenant-events";
-    private static final String LEASE_EVENTS_TOPIC = "lease-events";
-
-    // Explicit constructor (replaces @RequiredArgsConstructor)
-    public LeaseEventProducer(KafkaTemplate<String, Object> kafkaTemplate) {
-        this.kafkaTemplate = kafkaTemplate;
-    }
-
-    public void publishLeaseCreationRequested(LeaseResponse lease) {
-        LeaseEvent event = buildEvent(LeaseEventType.LEASE_CREATION_REQUESTED, lease);
-        String key = Objects.requireNonNull(lease.getId(), "Lease ID must not be null").toString();
-        kafkaTemplate.send(PROPERTY_EVENTS_TOPIC, key, event);
-    }
-
-    public void publishTenantValidationRequested(LeaseResponse lease) {
-        LeaseEvent event = buildEvent(LeaseEventType.TENANT_VALIDATION_REQUESTED, lease);
-        String key = Objects.requireNonNull(lease.getId(), "Lease ID must not be null").toString();
-        kafkaTemplate.send(TENANT_EVENTS_TOPIC, key, event);
-    }
-
     public void publishLeaseCreated(LeaseResponse lease) {
-        LeaseEvent event = buildEvent(LeaseEventType.LEASE_CREATED, lease);
-        String key = Objects.requireNonNull(lease.getId(), "Lease ID must not be null").toString();
-        kafkaTemplate.send(LEASE_EVENTS_TOPIC, key, event);
+        LeaseCreatedEvent event = new LeaseCreatedEvent();
+        event.setLeaseId(lease.getId());
+        event.setPropertyId(lease.getPropertyId());
+        event.setTenantId(lease.getTenantId());
+        event.setLandlordId(lease.getLandlordId());
+        event.setStartDate(lease.getStartDate());
+        event.setEndDate(lease.getEndDate());
+        event.setMonthlyRent(lease.getRentAmount());
+        event.setCorrelationId(UUID.randomUUID());
+        event.setEventType("lease.lease.created");
+        kafkaTemplate.send("lease.lease.created", lease.getId().toString(), event);
+        log.info("Published LeaseCreatedEvent for lease {}", lease.getId());
     }
 
-    public void publishLeaseCreationFailed(LeaseResponse lease, String reason) {
-        LeaseEvent event = buildEvent(LeaseEventType.LEASE_CREATION_FAILED, lease);
-        event.getPayload().setFailureReason(reason);
-        String key = Objects.requireNonNull(lease.getId(), "Lease ID must not be null").toString();
-        kafkaTemplate.send(LEASE_EVENTS_TOPIC, key, event);
+    /** Approval — reuses LeaseCreatedEvent with a different eventType. */
+    public void publishLeaseApproved(LeaseResponse lease) {
+        LeaseCreatedEvent event = new LeaseCreatedEvent();
+        event.setLeaseId(lease.getId());
+        event.setPropertyId(lease.getPropertyId());
+        event.setTenantId(lease.getTenantId());
+        event.setLandlordId(lease.getLandlordId());
+        event.setStartDate(lease.getStartDate());
+        event.setEndDate(lease.getEndDate());
+        event.setMonthlyRent(lease.getRentAmount());
+        event.setCorrelationId(UUID.randomUUID());
+        event.setEventType("lease.lease.approved");
+        kafkaTemplate.send("lease.lease.approved", lease.getId().toString(), event);
+        log.info("Published LeaseApprovedEvent for lease {}", lease.getId());
     }
 
+    public void publishLeaseTerminated(LeaseResponse lease, LocalDate terminationDate, String reason) {
+        LeaseTerminatedEvent event = new LeaseTerminatedEvent();
+        event.setLeaseId(lease.getId());
+        event.setPropertyId(lease.getPropertyId());
+        event.setTenantId(lease.getTenantId());
+        event.setLandlordId(lease.getLandlordId());
+        event.setTerminationDate(terminationDate);
+        event.setReason(reason);
+        event.setCorrelationId(UUID.randomUUID());
+        event.setEventType("lease.lease.terminated");
+        kafkaTemplate.send("lease.lease.terminated", lease.getId().toString(), event);
+        log.info("Published LeaseTerminatedEvent for lease {}", lease.getId());
+    }
+
+    // ---- saga stubs (log-only) ----
+    public void publishLeaseCreationRequested(LeaseResponse lease) {
+        log.info("[SAGA] LeaseCreationRequested for {}", lease.getId());
+    }
+    public void publishTenantValidationRequested(LeaseResponse lease) {
+        log.info("[SAGA] TenantValidationRequested for {}", lease.getId());
+    }
+    public void publishLeaseCreationFailed(LeaseResponse lease, String message) {
+        log.warn("[SAGA] LeaseCreationFailed for {}: {}", lease.getId(), message);
+    }
     public void publishCancelPropertyReservation(LeaseResponse lease) {
-        LeaseEvent event = buildEvent(LeaseEventType.CANCEL_PROPERTY_RESERVATION, lease);
-        String key = Objects.requireNonNull(lease.getId(), "Lease ID must not be null").toString();
-        kafkaTemplate.send(PROPERTY_EVENTS_TOPIC, key, event);
-    }
-
-    private LeaseEvent buildEvent(LeaseEventType type, LeaseResponse lease) {
-        LeaseEvent event = new LeaseEvent();
-        event.setEventId(UUID.randomUUID());
-        event.setEventType(type);
-        event.setTimestamp(LocalDateTime.now());
-        event.setSource("lease-service");
-        event.setPayload(new LeaseEventPayload(lease));
-        return event;
+        log.info("[SAGA] CancelPropertyReservation for {}", lease.getId());
     }
 }

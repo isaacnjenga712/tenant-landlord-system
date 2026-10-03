@@ -23,6 +23,9 @@ public class Landlord {
     @GeneratedValue(strategy = GenerationType.UUID)
     private UUID id;
 
+    @Column(name = "user_id", unique = true)
+    private UUID userId;
+
     @Column(unique = true, nullable = false)
     private String email;
 
@@ -34,13 +37,23 @@ public class Landlord {
 
     private String phoneNumber;
 
+    
+    @Column(name = "company_name", nullable = false)
+    private String companyName;
+
+    @Column(name = "contact_person")
+    private String contactPerson;
+
+    private String phone;
+    // -------------------------------------------------------------------
+
     @OneToMany(mappedBy = "landlord", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
     private List<Property> properties = new ArrayList<>();
 
     @Enumerated(EnumType.STRING)
     private LandlordStatus status;
 
-    // auditing fields
+    
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
 

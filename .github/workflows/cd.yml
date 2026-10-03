@@ -1,0 +1,163 @@
+
+name: CD Build and Push
+
+
+
+on:
+
+  push:
+
+    branches: [main]
+
+  workflow_dispatch:
+
+
+
+env:
+
+  REGISTRY: ghcr.io
+
+  IMAGE_PREFIX: ${{ github.repository_owner }}/tenant-landlord-system
+
+
+
+jobs:
+
+  build-and-push:
+
+    name: Build and push
+
+    runs-on: ubuntu-latest
+
+    permissions:
+
+      contents: read
+
+      packages: write
+
+    strategy:
+
+      fail-fast: false
+
+      matrix:
+
+        service:
+
+          - auth-service
+
+          - lease-service
+
+          - property-management-service
+
+          - payment-service
+
+          - mpesa-service
+
+          - notification-engine
+
+          - maintainance-ticket-service
+
+          - gateway-service
+
+          - eureka-server
+
+          - nginx
+
+    steps:
+
+      - uses: actions/checkout@v4
+
+
+
+      - if: matrix.service != 'nginx'
+
+        uses: actions/setup-java@v4
+
+        with:
+
+          java-version: "17"
+
+          distribution: temurin
+
+          cache: maven
+
+
+
+      - if: matrix.service != 'nginx'
+
+        name: Install root POM
+
+        run: mvn -B -ntp -N install -Dmaven.test.skip=true
+
+
+
+      - if: matrix.service != 'nginx'
+
+        name: Build and install common
+
+        run: mvn -B -ntp -f common/pom.xml clean install -Dmaven.test.skip=true
+
+
+
+      - if: matrix.service != 'nginx'
+
+        name: Build ${{ matrix.service }} jar
+
+        working-directory: ${{ matrix.service }}
+
+        run: mvn -B -ntp clean package -Dmaven.test.skip=true
+
+
+
+      - uses: docker/setup-buildx-action@v3
+
+
+
+      - uses: docker/login-action@v3
+
+        with:
+
+          registry: ${{ env.REGISTRY }}
+
+          username: ${{ github.actor }}
+
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+
+
+      - id: meta
+
+        uses: docker/metadata-action@v5
+
+        with:
+
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/${{ matrix.service }}
+
+          tags: |
+
+            type=ref,event=branch
+
+            type=sha,prefix=sha-
+
+            type=raw,value=latest
+
+
+
+      - uses: docker/build-push-action@v5
+
+        with:
+
+          context: ./${{ matrix.service }}
+
+          file: ./${{ matrix.service }}/Dockerfile
+
+          push: true
+
+          tags: ${{ steps.meta.outputs.tags }}
+
+          labels: ${{ steps.meta.outputs.labels }}
+
+          cache-from: type=gha
+
+          cache-to: type=gha,mode=max
+

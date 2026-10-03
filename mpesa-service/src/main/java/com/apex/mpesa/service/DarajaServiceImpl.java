@@ -4,6 +4,7 @@ import com.apex.mpesa.config.DarajaConfig;
 import com.apex.mpesa.dto.*;
 import com.apex.mpesa.entity.Transaction;
 import com.apex.mpesa.entity.TransactionStatus;
+import com.apex.mpesa.producer.MpesaEventProducer;
 import com.apex.mpesa.repository.TransactionRepository;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -12,6 +13,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.*;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.RestTemplate;
 
 import java.math.BigDecimal;
@@ -31,6 +33,7 @@ public class DarajaServiceImpl implements DarajaService {
 
     private final DarajaConfig darajaConfig;
     private final TransactionRepository transactionRepository;
+    private final MpesaEventProducer mpesaEventProducer;
     private final RestTemplate restTemplate = new RestTemplate();
     private final ObjectMapper objectMapper = new ObjectMapper();
 
@@ -38,7 +41,8 @@ public class DarajaServiceImpl implements DarajaService {
     @Override
     @Transactional
     public PaymentInitiationResponseDto initiateStkPush(StkPushRequestDto request) throws Exception {
-        log.info("Initiating STK Push for tenant {} amount {}", request.getTenantId(), request.getAmount());
+        log.info("Initiating STK Push for tenant {} amount {} phone {}",
+                request.getTenantId(), request.getAmount(), request.getPhone());
 
         String token = getOAuthToken();
         String timestamp = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMddHHmmss"));
@@ -57,22 +61,44 @@ public class DarajaServiceImpl implements DarajaService {
         body.put("AccountReference", request.getAccountReference() != null ? request.getAccountReference() : "RentPayment");
         body.put("TransactionDesc", "Rent Payment");
 
+        log.info("STK push request body: CallBackURL={}, ShortCode={}, PhoneNumber={}",
+                darajaConfig.getCallbackUrl(), darajaConfig.getShortcode(), request.getPhone());
+
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.APPLICATION_JSON);
         headers.set("Authorization", "Bearer " + token);
 
         HttpEntity<Map<String, Object>> entity = new HttpEntity<>(body, headers);
-        ResponseEntity<JsonNode> response = restTemplate.postForEntity(
-                darajaConfig.getStkpushUrl(), entity, JsonNode.class);
+
+        ResponseEntity<JsonNode> response;
+        try {
+            response = restTemplate.postForEntity(
+                    darajaConfig.getStkpushUrl(), entity, JsonNode.class);
+        } catch (HttpClientErrorException e) {
+            log.error("Safaricom STK push rejected: status={} body={}",
+                    e.getStatusCode(), e.getResponseBodyAsString());
+            throw e;
+        } catch (Exception e) {
+            log.error("Safaricom STK push failed", e);
+            throw e;
+        }
 
         JsonNode responseBody = response.getBody();
+        log.info("Safaricom STK response: {}", responseBody);
+
+        if (responseBody == null || responseBody.get("CheckoutRequestID") == null) {
+            throw new IllegalStateException(
+                    "Safaricom response missing CheckoutRequestID: " + responseBody);
+        }
 
         Transaction transaction = new Transaction();
         transaction.setCheckoutRequestId(responseBody.get("CheckoutRequestID").asText());
-        transaction.setMerchantRequestId(responseBody.get("MerchantRequestID").asText());
+        transaction.setMerchantRequestId(
+                responseBody.hasNonNull("MerchantRequestID")
+                        ? responseBody.get("MerchantRequestID").asText()
+                        : null);
         transaction.setPhoneNumber(request.getPhone());
-        // Convert amount from String to BigDecimal
-        transaction.setAmount(new BigDecimal(request.getAmount()));
+        transaction.setAmount(BigDecimal.valueOf(request.getAmount()));
         transaction.setStatus(TransactionStatus.PENDING);
         transaction.setAccountReference(request.getAccountReference());
         transaction.setTenantId(request.getTenantId());
@@ -82,12 +108,20 @@ public class DarajaServiceImpl implements DarajaService {
         transactionRepository.save(transaction);
 
         PaymentInitiationResponseDto dto = new PaymentInitiationResponseDto();
-        dto.setMerchantRequestId(responseBody.get("MerchantRequestID").asText());
-        dto.setCheckoutRequestId(responseBody.get("CheckoutRequestID").asText());
-        dto.setResponseCode(responseBody.get("ResponseCode").asText());
-        dto.setResponseDescription(responseBody.get("ResponseDescription").asText());
-        dto.setCustomerMessage(responseBody.get("CustomerMessage").asText());
-
+        dto.setMerchantRequestId(transaction.getMerchantRequestId());
+        dto.setCheckoutRequestId(transaction.getCheckoutRequestId());
+        dto.setResponseCode(
+                responseBody.hasNonNull("ResponseCode")
+                        ? responseBody.get("ResponseCode").asText()
+                        : "0");
+        dto.setResponseDescription(
+                responseBody.hasNonNull("ResponseDescription")
+                        ? responseBody.get("ResponseDescription").asText()
+                        : "");
+        dto.setCustomerMessage(
+                responseBody.hasNonNull("CustomerMessage")
+                        ? responseBody.get("CustomerMessage").asText()
+                        : "");
         return dto;
     }
 
@@ -121,7 +155,6 @@ public class DarajaServiceImpl implements DarajaService {
                     String name = item.getName();
                     Object value = item.getValue();
                     if ("Amount".equals(name) && value instanceof Number) {
-                        // Convert double to BigDecimal
                         transaction.setAmount(BigDecimal.valueOf(((Number) value).doubleValue()));
                     } else if ("MpesaReceiptNumber".equals(name)) {
                         transaction.setMpesaReceiptNumber(value.toString());
@@ -141,6 +174,14 @@ public class DarajaServiceImpl implements DarajaService {
         }
 
         transactionRepository.save(transaction);
+
+        // Publish event to Kafka (fail-soft — callback must not fail if Kafka is down)
+        try {
+            mpesaEventProducer.publishStkResult(transaction);
+        } catch (Exception e) {
+            log.warn("Failed to publish StkResultEvent for {}: {}",
+                    transaction.getCheckoutRequestId(), e.getMessage());
+        }
     }
 
     // -------- QUERY STATUS --------
@@ -178,14 +219,12 @@ public class DarajaServiceImpl implements DarajaService {
         return mapToDto(tx);
     }
 
-    // -------- GET TRANSACTIONS BY TENANT --------
     @Override
     public List<TransactionResponseDto> getTransactionsByTenant(String tenantId) {
         return transactionRepository.findByTenantId(tenantId)
                 .stream().map(this::mapToDto).collect(Collectors.toList());
     }
 
-    // -------- GET TRANSACTIONS BY LEASE --------
     @Override
     public List<TransactionResponseDto> getTransactionsByLease(String leaseId) {
         return transactionRepository.findByLeaseId(leaseId)
@@ -217,7 +256,6 @@ public class DarajaServiceImpl implements DarajaService {
         dto.setCheckoutRequestId(tx.getCheckoutRequestId());
         dto.setMerchantRequestId(tx.getMerchantRequestId());
         dto.setPhoneNumber(tx.getPhoneNumber());
-        // Convert BigDecimal to double for the DTO
         dto.setAmount(tx.getAmount() != null ? tx.getAmount().doubleValue() : null);
         dto.setMpesaReceiptNumber(tx.getMpesaReceiptNumber());
         dto.setResultDescription(tx.getResultDescription());

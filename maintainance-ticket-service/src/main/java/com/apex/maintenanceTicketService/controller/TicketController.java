@@ -15,7 +15,7 @@ import java.util.List;
 import java.util.UUID;
 
 @RestController
-@RequestMapping("/api/tickets")
+@RequestMapping("/api/v1/tickets")
 @RequiredArgsConstructor
 public class TicketController {
 
@@ -25,15 +25,18 @@ public class TicketController {
     @PostMapping
     public ResponseEntity<TicketResponse> createTicket(
             @Valid @RequestBody TicketCreateRequest request,
-            @RequestHeader(value = "X-Tenant-ID", required = false) UUID tenantId,
-            @RequestHeader(value = "X-Landlord-ID", required = false) UUID landlordId) {
+            @RequestHeader(value = "X-User-Id", required = false) String userIdHeader,
+            @RequestHeader(value = "X-User-Role", required = false) String userRole,
+            @RequestHeader(value = "X-Tenant-ID", required = false) String tenantHeader) {
         return ResponseEntity.status(HttpStatus.CREATED)
-                .body(commandService.createTicket(request, tenantId, landlordId));
+                .body(commandService.createTicket(request, userIdHeader, userRole, tenantHeader));
     }
 
     @GetMapping
-    public ResponseEntity<List<TicketResponse>> getAllTickets() {
-        return ResponseEntity.ok(queryService.getAllTickets());
+    public ResponseEntity<List<TicketResponse>> getAllTickets(
+            @RequestHeader(value = "X-User-Id", required = false) String userIdHeader,
+            @RequestHeader(value = "X-User-Role", required = false) String userRole) {
+        return ResponseEntity.ok(queryService.getAllTickets(userIdHeader, userRole));
     }
 
     @GetMapping("/{id}")
@@ -49,6 +52,11 @@ public class TicketController {
     @GetMapping("/tenant/{tenantId}")
     public ResponseEntity<List<TicketResponse>> getTicketsByTenant(@PathVariable UUID tenantId) {
         return ResponseEntity.ok(queryService.getTicketsByTenant(tenantId));
+    }
+
+    @GetMapping("/landlord/{landlordId}")
+    public ResponseEntity<List<TicketResponse>> getTicketsByLandlord(@PathVariable UUID landlordId) {
+        return ResponseEntity.ok(queryService.getTicketsByLandlord(landlordId));
     }
 
     @GetMapping("/status/{status}")

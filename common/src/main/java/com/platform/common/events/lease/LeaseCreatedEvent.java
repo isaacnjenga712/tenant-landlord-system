@@ -23,4 +23,5 @@ public class LeaseCreatedEvent implements Serializable {
     private LocalDate endDate;
     private BigDecimal monthlyRent;
     private UUID correlationId;
+    private String eventType;
 }

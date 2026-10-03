@@ -22,10 +22,11 @@ public class TicketEventPublisher {
 
     public void publishTicketCreated(TicketCreatedEvent event, UUID tenantId) {
         String tenantIdStr = tenantId != null ? tenantId.toString() : null;
+        String ticketIdStr = event.getTicketId() != null ? event.getTicketId().toString() : null;
         Message<TicketCreatedEvent> message = MessageBuilder
                 .withPayload(event)
                 .setHeader(KafkaHeaders.TOPIC, KafkaTopics.TICKET_CREATED)
-                .setHeader(KafkaHeaders.KEY, event.getTicketId())
+                .setHeader(KafkaHeaders.KEY, ticketIdStr)     // ← UUID → String
                 .setHeader("tenant_id", tenantIdStr)
                 .setHeader("correlation_id", UUID.randomUUID().toString())
                 .build();
@@ -35,10 +36,11 @@ public class TicketEventPublisher {
 
     public void publishTicketResolved(TicketResolvedEvent event, UUID tenantId) {
         String tenantIdStr = tenantId != null ? tenantId.toString() : null;
+        String ticketIdStr = event.getTicketId() != null ? event.getTicketId().toString() : null;
         Message<TicketResolvedEvent> message = MessageBuilder
                 .withPayload(event)
                 .setHeader(KafkaHeaders.TOPIC, KafkaTopics.TICKET_RESOLVED)
-                .setHeader(KafkaHeaders.KEY, event.getTicketId())
+                .setHeader(KafkaHeaders.KEY, ticketIdStr)     // ← UUID → String
                 .setHeader("tenant_id", tenantIdStr)
                 .setHeader("correlation_id", UUID.randomUUID().toString())
                 .build();

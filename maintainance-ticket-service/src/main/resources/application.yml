@@ -1,36 +1,33 @@
+server:
+  port: ${SERVER_PORT:8084}
+
 spring:
   application:
     name: maintenance-ticket-service
 
-  # ==================== DATASOURCE ====================
   datasource:
-    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://postgres:5432/ticket_db}
-    username: ${SPRING_DATASOURCE_USERNAME:postgres}
-    password: ${SPRING_DATASOURCE_PASSWORD:apex123}
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://postgres:5432/rentflow}
+    username: ${SPRING_DATASOURCE_USERNAME:rentflow}
+    password: ${SPRING_DATASOURCE_PASSWORD:DB_PASSWORD}
     driver-class-name: org.postgresql.Driver
 
-  # ==================== JPA / HIBERNATE ====================
   jpa:
     hibernate:
       ddl-auto: ${SPRING_JPA_HIBERNATE_DDL_AUTO:update}
-    show-sql: true
+    show-sql: false
     properties:
       hibernate:
         dialect: org.hibernate.dialect.PostgreSQLDialect
         format_sql: true
 
-  # ==================== FLYWAY (for migrations) ====================
   flyway:
-    enabled: ${SPRING_FLYWAY_ENABLED:true}
+    enabled: ${SPRING_FLYWAY_ENABLED:false}
     baseline-on-migrate: true
     locations: classpath:db/migration
     validate-on-migrate: false
 
-  # ==================== KAFKA ====================
   kafka:
-    bootstrap-servers: ${SPRING_KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
-    listener:
-      auto-startup: ${SPRING_KAFKA_LISTENER_AUTO_STARTUP:true}
+    bootstrap-servers: ${SPRING_KAFKA_BOOTSTRAP_SERVERS:kafka:29092}
     producer:
       key-serializer: org.apache.kafka.common.serialization.StringSerializer
       value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
@@ -38,41 +35,87 @@ spring:
         enable.idempotence: true
         acks: all
         retries: 10
+        max.in.flight.requests.per.connection: 5
+        spring.json.add.type.headers: false
     consumer:
-      group-id: maintenance-group
+      group-id: ${SPRING_KAFKA_CONSUMER_GROUP_ID:maintenance-group}
+      auto-offset-reset: earliest
+      enable-auto-commit: false
       key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
       value-deserializer: org.springframework.kafka.support.serializer.JsonDeserializer
       properties:
-        spring.json.trusted.packages: "*"
-        spring.json.type.mapping: |
-          leaseCreated:com.platform.common.events.lease.LeaseCreatedEvent,
-          leaseTerminated:com.platform.common.events.lease.LeaseTerminatedEvent
-      enable-auto-commit: false
+        spring.json.trusted.packages: "com.platform.common.events.*,com.apex.*"
+        spring.json.use.type.headers: false
+        spring.json.type.mapping: "leaseCreated:com.platform.common.events.lease.LeaseCreatedEvent,leaseTerminated:com.platform.common.events.lease.LeaseTerminatedEvent,leaseCompensationRequired:com.platform.common.events.lease.LeaseCompensationRequiredEvent,ticketCreated:com.platform.common.events.maintenance.TicketCreatedEvent,ticketResolved:com.platform.common.events.maintenance.TicketResolvedEvent"
+    listener:
+      auto-startup: ${SPRING_KAFKA_LISTENER_AUTO_STARTUP:true}
+      ack-mode: manual_immediate
+      missing-topics-fatal: false
+      concurrency: 3
 
-# ==================== SERVER ====================
-server:
-  port: ${SERVER_PORT:8084}
+eureka:
+  client:
+    service-url:
+      defaultZone: ${EUREKA_CLIENT_SERVICEURL_DEFAULTZONE:http://eureka-server:8761/eureka/}
+    register-with-eureka: true
+    fetch-registry: true
+  instance:
+    prefer-ip-address: true
+    lease-renewal-interval-in-seconds: 10
+    lease-expiration-duration-in-seconds: 30
 
-# ============================================================
-# ✅ ACTUATOR — exposes /actuator/health and /actuator/info
-# ============================================================
 management:
   endpoints:
     web:
       exposure:
-        include: health,info
+        include: health,info,prometheus,metrics,kafka
       base-path: /actuator
   endpoint:
     health:
       show-details: always
       probes:
         enabled: true
+    prometheus:
+      enabled: true
+  metrics:
+    tags:
+      application: ${spring.application.name}
+      env: ${SPRING_PROFILES_ACTIVE:default}
+    distribution:
+      percentiles-histogram:
+        http.server.requests: true
+      percentiles:
+        http.server.requests: 0.5, 0.95, 0.99
+      slo:
+        http.server.requests: 100ms, 500ms, 1s, 5s
+  prometheus:
+    metrics:
+      export:
+        enabled: true
+  tracing:
+    sampling:
+      probability: 1.0
+    propagation:
+      type: b3
+  zipkin:
+    tracing:
+      endpoint: ${ZIPKIN_URL:http://zipkin:9411/api/v2/spans}
   info:
     env:
       enabled: true
 
-# ==================== LOGGING ====================
 logging:
   level:
-    com.apex.maintenanceTicketService: DEBUG
+    com.apex.maintenanceTicketService: ${LOG_LEVEL_MAINTENANCE:DEBUG}
     org.springframework.kafka: INFO
+    org.apache.kafka: WARN
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss} [${spring.application.name},%X{traceId:-},%X{spanId:-}] - %msg%n"
+
+app:
+  kafka:
+    topics:
+      ticket-created: maintenance.events.created
+      ticket-resolved: maintenance.events.resolved
+      lease-created: lease.events.created
+      lease-terminated: lease.events.terminated

@@ -14,6 +14,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.time.Instant;
+import java.util.List;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -54,7 +55,7 @@ class RefreshTokenServiceTest {
     @Test
     @DisplayName("createRefreshToken() persists a new token when no active token exists")
     void createRefreshToken_freshUser() {
-        when(refreshTokenRepository.findByUserAndRevokedFalse(user)).thenReturn(Optional.empty());
+        when(refreshTokenRepository.findAllByUserAndRevokedFalse(user)).thenReturn(List.of());
         when(jwtService.generateRefreshToken(user)).thenReturn("signed-jwt-refresh");
         when(refreshTokenRepository.save(any(RefreshToken.class)))
                 .thenAnswer(inv -> inv.getArgument(0));
@@ -66,7 +67,7 @@ class RefreshTokenServiceTest {
         assertThat(created.isRevoked()).isFalse();
         assertThat(created.getExpiryDate()).isAfter(Instant.now());
 
-        verify(refreshTokenRepository).findByUserAndRevokedFalse(user);
+        verify(refreshTokenRepository).findAllByUserAndRevokedFalse(user);
         verify(jwtService).generateRefreshToken(user);
         verify(refreshTokenRepository).save(any(RefreshToken.class));
     }
@@ -82,7 +83,8 @@ class RefreshTokenServiceTest {
                 .revoked(false)
                 .build();
 
-        when(refreshTokenRepository.findByUserAndRevokedFalse(user)).thenReturn(Optional.of(existing));
+        when(refreshTokenRepository.findAllByUserAndRevokedFalse(user))
+                .thenReturn(List.of(existing));
         when(jwtService.generateRefreshToken(user)).thenReturn("new-token");
         when(refreshTokenRepository.save(any(RefreshToken.class)))
                 .thenAnswer(inv -> inv.getArgument(0));
@@ -152,7 +154,7 @@ class RefreshTokenServiceTest {
                 .build();
 
         when(refreshTokenRepository.findByToken("valid-old")).thenReturn(Optional.of(valid));
-        when(refreshTokenRepository.findByUserAndRevokedFalse(user)).thenReturn(Optional.empty());
+        when(refreshTokenRepository.findAllByUserAndRevokedFalse(user)).thenReturn(List.of());
         when(jwtService.generateRefreshToken(user)).thenReturn("rotated-new");
         when(refreshTokenRepository.save(any(RefreshToken.class)))
                 .thenAnswer(inv -> inv.getArgument(0));

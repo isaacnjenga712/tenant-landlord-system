@@ -5,18 +5,15 @@ spring:
   application:
     name: lease-service
 
-  # ---------- Datasource ----------
   datasource:
-    # Default URL uses port 5000. Override with SPRING_DATASOURCE_URL if needed.
-    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/lease_db}
-    username: ${SPRING_DATASOURCE_USERNAME:postgres}
-    password: ${SPRING_DATASOURCE_PASSWORD:apex123}
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://postgres:5432/rentflow}
+    username: ${SPRING_DATASOURCE_USERNAME:rentflow}
+    password: ${SPRING_DATASOURCE_PASSWORD:DB_PASSWORD}
     driver-class-name: org.postgresql.Driver
 
-  # ---------- JPA ----------
   jpa:
     hibernate:
-      ddl-auto: ${SPRING_JPA_HIBERNATE_DDL_AUTO:validate}
+      ddl-auto: ${SPRING_JPA_HIBERNATE_DDL_AUTO:update}
     properties:
       hibernate:
         dialect: org.hibernate.dialect.PostgreSQLDialect
@@ -24,55 +21,106 @@ spring:
         jdbc:
           lob:
             non_contextual_creation: true
-    show-sql: ${SPRING_JPA_SHOW_SQL:false}
+    show-sql: false
 
-  # ---------- Flyway ----------
   flyway:
-    enabled: ${SPRING_FLYWAY_ENABLED:true}
-    baseline-on-migrate: ${SPRING_FLYWAY_BASELINE_ON_MIGRATE:true}
+    enabled: ${SPRING_FLYWAY_ENABLED:false}
+    baseline-on-migrate: true
     locations: ${SPRING_FLYWAY_LOCATIONS:classpath:db/migration}
-    clean-on-validation-error: ${SPRING_FLYWAY_CLEAN_ON_VALIDATION_ERROR:false}
 
-  # ---------- Kafka ----------
   kafka:
-    bootstrap-servers: ${SPRING_KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
-    listener:
-      auto-startup: ${SPRING_KAFKA_LISTENER_AUTO_STARTUP:true}
+    bootstrap-servers: ${SPRING_KAFKA_BOOTSTRAP_SERVERS:kafka:29092}
     producer:
       key-serializer: org.apache.kafka.common.serialization.StringSerializer
       value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
+      properties:
+        enable.idempotence: true
+        acks: all
+        retries: 3
+        max.in.flight.requests.per.connection: 5
+        spring.json.add.type.headers: false
     consumer:
       group-id: ${SPRING_KAFKA_CONSUMER_GROUP_ID:lease-service-group}
+      auto-offset-reset: ${SPRING_KAFKA_CONSUMER_AUTO_OFFSET_RESET:earliest}
+      enable-auto-commit: false
       key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
       value-deserializer: org.springframework.kafka.support.serializer.JsonDeserializer
       properties:
-        spring.json.trusted.packages: "*"
-    admin:
-      auto-create: ${SPRING_KAFKA_ADMIN_AUTO_CREATE:true}
+        spring.json.trusted.packages: "com.platform.common.events.*,com.apex.*"
+        spring.json.use.type.headers: false
+        spring.json.type.mapping: "leaseCreated:com.platform.common.events.lease.LeaseCreatedEvent,leaseTerminated:com.platform.common.events.lease.LeaseTerminatedEvent,leaseCompensationRequired:com.platform.common.events.lease.LeaseCompensationRequiredEvent,ticketCreated:com.platform.common.events.maintenance.TicketCreatedEvent,ticketResolved:com.platform.common.events.maintenance.TicketResolvedEvent,paymentReceived:com.platform.common.events.billing.PaymentReceivedEvent,paymentFailed:com.platform.common.events.billing.PaymentFailedEvent"
+    listener:
+      auto-startup: ${SPRING_KAFKA_LISTENER_AUTO_STARTUP:true}
+      ack-mode: manual_immediate
+      concurrency: 3
+      missing-topics-fatal: false
 
-# ============================================================
-# ✅ ACTUATOR — exposes /actuator/health and /actuator/info
-# ============================================================
+eureka:
+  client:
+    service-url:
+      defaultZone: ${EUREKA_CLIENT_SERVICEURL_DEFAULTZONE:http://eureka-server:8761/eureka/}
+    register-with-eureka: true
+    fetch-registry: true
+  instance:
+    prefer-ip-address: true
+    lease-renewal-interval-in-seconds: 10
+    lease-expiration-duration-in-seconds: 30
+
 management:
   endpoints:
     web:
       exposure:
-        include: health,info
+        include: health,info,prometheus,metrics,kafka
       base-path: /actuator
   endpoint:
     health:
       show-details: always
       probes:
         enabled: true
+    prometheus:
+      enabled: true
+  metrics:
+    tags:
+      application: ${spring.application.name}
+      env: ${SPRING_PROFILES_ACTIVE:default}
+    distribution:
+      percentiles-histogram:
+        http.server.requests: true
+      percentiles:
+        http.server.requests: 0.5, 0.95, 0.99
+      slo:
+        http.server.requests: 100ms, 500ms, 1s, 5s
+  prometheus:
+    metrics:
+      export:
+        enabled: true
+  tracing:
+    sampling:
+      probability: 1.0
+    propagation:
+      type: b3
+  zipkin:
+    tracing:
+      endpoint: ${ZIPKIN_URL:http://zipkin:9411/api/v2/spans}
   info:
     env:
       enabled: true
 
-# ---------- Logging ----------
 logging:
   level:
     com.apex.module.lease: ${LOG_LEVEL_LEASE:INFO}
-    org.springframework.kafka: ${LOG_LEVEL_KAFKA:WARN}
-    org.hibernate: ${LOG_LEVEL_HIBERNATE:WARN}
+    org.hibernate: WARN
+    org.springframework.kafka: INFO
   pattern:
-    console: "%d{yyyy-MM-dd HH:mm:ss} - %msg%n"
+    console: "%d{yyyy-MM-dd HH:mm:ss} [${spring.application.name},%X{traceId:-},%X{spanId:-}] - %msg%n"
+
+app:
+  kafka:
+    topics:
+      lease-created: lease.events.created
+      lease-terminated: lease.events.terminated
+      lease-compensation-required: lease.events.compensation.required
+      ticket-created: maintenance.events.created
+      ticket-resolved: maintenance.events.resolved
+      payment-received: payment.events.received
+      payment-failed: payment.events.failed

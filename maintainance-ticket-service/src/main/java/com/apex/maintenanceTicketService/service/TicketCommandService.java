@@ -8,8 +8,15 @@ import java.util.UUID;
 
 public interface TicketCommandService {
 
-    // ✅ tenantId and landlordId are UUID
-    TicketResponse createTicket(TicketCreateRequest request, UUID tenantId, UUID landlordId);
+    /**
+     * Create a ticket. The service resolves tenantId and landlordId from the
+     * X-User-Id (publicId from JWT) and X-User-Role headers. tenantHeader is
+     * optional and may be non-UUID ("default").
+     */
+    TicketResponse createTicket(TicketCreateRequest request,
+                                String userIdHeader,
+                                String userRole,
+                                String tenantHeader);
 
     TicketResponse updateTicket(UUID id, TicketUpdateRequest request);
 

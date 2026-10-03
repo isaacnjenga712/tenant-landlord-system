@@ -49,22 +49,6 @@ cd "$REPO_ROOT"
 
 Use `docker compose restart <service>` for a Compose service, or `docker restart <container>` for a running container.
 
-## Table of Contents
-
-- [Quick Reference](#1-quick-reference)
-- [Health Checks](#2-health-checks)
-- [Common Symptoms → Fixes](#3-common-symptoms--fixes)
-- [Service-Specific Runbooks](#4-service-specific-runbooks)
-- [Database Operations](#5-database-operations)
-- [Kafka Operations](#6-kafka-operations)
-- [Frontend Operations](#7-frontend-operations)
-- [Port & Process Management](#8-port--process-management)
-- [Common JAR Distribution](#9-common-jar-distribution)
-- [M-Pesa & Safaricom Operations](#10-m-pesa--safaricom-operations)
-- [Emergency Recovery](#11-emergency-recovery)
-- [Log Collection for Debugging](#12-log-collection-for-debugging)
-- [Quick Copy-Paste Block](#quick-copy-paste-block--most-common-fixes)
-- [Escalation Path](#escalation-path)
 
 RentFlow — Operations Runbook
 

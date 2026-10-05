@@ -107,3 +107,32 @@ yarn-debug.log*
 
 surefire-reports/
 
+
+
+
+# Kafka test event files
+
+event.json
+
+event2.json
+
+
+
+# Frontend build artifacts
+
+frontend/node_modules/
+
+frontend/dist/
+
+frontend/.vite/
+
+frontend/.env.local
+
+
+
+# Windows junk
+
+Thumbs.db
+
+desktop.ini
+

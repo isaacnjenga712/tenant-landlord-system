@@ -50,7 +50,7 @@
 import { ref, onMounted } from 'vue'
 import AppLayout from '../../components/layout/AppLayout.vue'
 import { ticketApi, type Ticket, type TicketStatus } from '../../api/ticket.api'
-import { useNotificationStore } from '../../stores/notification'
+import { useNotificationStore } from '../../stores/notification.ts'
 
 const tickets = ref<Ticket[]>([])
 const loading = ref(true)

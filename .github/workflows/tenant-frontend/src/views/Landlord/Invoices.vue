@@ -248,7 +248,7 @@ import { invoiceApi, generateInvoiceNumber, type Invoice } from '../../api/invoi
 import { invoiceLineItemApi, type InvoiceLineItem, type LineItemCategory } from '../../api/invoice-line-item.api'
 import { leaseApi } from '../../api/lease.api'
 import { propertyApi } from '../../api/property.api'
-import { useNotificationStore } from '../../stores/notification'
+import { useNotificationStore } from '../../stores/notification.ts'
 
 const notification = useNotificationStore()
 

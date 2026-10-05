@@ -102,7 +102,7 @@ import { invoiceLineItemApi, type InvoiceLineItem } from '../../api/invoice-line
 import { leaseApi } from '../../api/lease.api'
 import { mpesaApi } from '../../api/mpesa.api'
 import { useAuthStore } from '../../stores/auth'
-import { useNotificationStore } from '../../stores/notification'
+import { useNotificationStore } from '../../stores/notification.ts'
 
 const auth = useAuthStore()
 const notification = useNotificationStore()

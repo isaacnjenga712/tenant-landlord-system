@@ -31,7 +31,7 @@ import AppLayout from '../../components/layout/AppLayout.vue'
 import PropertyCard from '../../components/property/PropertyCard.vue'
 import PropertyForm, { type PropertyFormPayload } from '../../components/property/PropertyForm.vue'
 import { useProperties } from '../../composables/useProperties'
-import { useNotificationStore } from '../../stores/notification'
+import { useNotificationStore } from '../../stores/notification.ts'
 
 const { propertyStore } = useProperties()
 const notification = useNotificationStore()

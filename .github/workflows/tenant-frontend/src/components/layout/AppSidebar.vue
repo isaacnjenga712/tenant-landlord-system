@@ -5,20 +5,34 @@
         v-for="item in menuItems"
         :key="item.path"
         :to="item.path"
-        class="block px-4 py-2 rounded hover:bg-gray-700"
+        class="flex items-center justify-between px-4 py-2 rounded hover:bg-gray-700"
         active-class="bg-gray-700"
       >
-        {{ item.label }}
+        <span>{{ item.label }}</span>
+        <span
+          v-if="item.path.endsWith('/notifications') && unreadCount > 0"
+          class="rounded-full bg-rose-500 px-2 py-0.5 text-xs font-medium"
+        >
+          {{ unreadCount > 99 ? '99+' : unreadCount }}
+        </span>
       </router-link>
     </nav>
   </aside>
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, onMounted } from 'vue'
+import { storeToRefs } from 'pinia'
 import { useAuth } from '@/composables/useAuth'
+import { useNotificationStore } from '@/stores/notifications'
 
 const { role } = useAuth()
+const notificationStore = useNotificationStore()
+const { unreadCount } = storeToRefs(notificationStore)
+
+onMounted(() => {
+  void notificationStore.fetchUnreadCount()
+})
 
 const menuItems = computed(() => {
   if (role.value === 'TENANT') {
@@ -27,6 +41,7 @@ const menuItems = computed(() => {
       { path: '/tenant/properties', label: 'Browse Properties' },
       { path: '/tenant/my-lease', label: 'My Lease' },
       { path: '/tenant/payments', label: 'Payments' },
+      { path: '/tenant/notifications', label: 'Notifications' },
     ]
   }
   if (role.value === 'LANDLORD') {
@@ -35,12 +50,14 @@ const menuItems = computed(() => {
       { path: '/landlord/properties', label: 'My Properties' },
       { path: '/landlord/applications', label: 'Applications' },
       { path: '/landlord/tenants', label: 'Tenants' },
+      { path: '/landlord/notifications', label: 'Notifications' },
     ]
   }
   if (role.value === 'ADMIN') {
     return [
       { path: '/admin/users', label: 'Users' },
       { path: '/admin/analytics', label: 'Analytics' },
+      { path: '/admin/notifications', label: 'Notifications' },
     ]
   }
   return [{ path: '/dashboard', label: 'Dashboard' }]

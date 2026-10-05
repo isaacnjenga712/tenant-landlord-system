@@ -100,7 +100,7 @@ import AppLayout from '../../components/layout/AppLayout.vue'
 import { securityDepositApi, type SecurityDeposit } from '../../api/security-deposit.api'
 import { leaseApi } from '../../api/lease.api'
 import { propertyApi } from '../../api/property.api'
-import { useNotificationStore } from '../../stores/notification'
+import { useNotificationStore } from '../../stores/notification.ts'
 
 const notification = useNotificationStore()
 

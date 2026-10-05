@@ -29,7 +29,8 @@ public class JwtAuthFilter implements GlobalFilter, Ordered {
         "/api/v1/auth/register",
         "/api/v1/auth/refresh",
         "/api/v1/auth/callback",
-        "/actuator"
+        "/actuator",
+        "/ws/"
     );
 
     @Override
@@ -58,10 +59,10 @@ public class JwtAuthFilter implements GlobalFilter, Ordered {
 
             ServerHttpRequest.Builder mutated = exchange.getRequest().mutate();
 
-            // Prefer the UUID publicId claim; fall back to sub (email) only if absent
             String publicId = claims.get("publicId", String.class);
             if (publicId != null && !publicId.isBlank()) {
                 mutated.header("X-User-Id", publicId);
+                mutated.header("X-User-PublicId", publicId);
             } else {
                 mutated.header("X-User-Email", claims.getSubject());
             }
@@ -81,6 +82,6 @@ public class JwtAuthFilter implements GlobalFilter, Ordered {
 
     @Override
     public int getOrder() {
-        return -1; // run before routing filters
+        return -1;
     }
 }

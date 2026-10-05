@@ -86,7 +86,7 @@ import { leaseApi } from '../../api/lease.api'
 import { paymentApi, type Payment } from '../../api/payment.api'
 import { mpesaApi } from '../../api/mpesa.api'
 import { useAuthStore } from '../../stores/auth'
-import { useNotificationStore } from '../../stores/notification'
+import { useNotificationStore } from '../../stores/notification.ts'
 
 const loading = ref(true)
 const error = ref('')

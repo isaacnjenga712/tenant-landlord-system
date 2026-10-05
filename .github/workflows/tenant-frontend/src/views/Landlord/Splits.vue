@@ -116,7 +116,7 @@ import { paymentSplitApi, type PaymentSplit } from '../../api/payment-split.api'
 import { mpesaApi, type MpesaTransaction } from '../../api/mpesa.api'
 import { leaseApi } from '../../api/lease.api'
 import { invoiceApi, type Invoice } from '../../api/invoice.api'
-import { useNotificationStore } from '../../stores/notification'
+import { useNotificationStore } from '../../stores/notification.ts'
 
 const notification = useNotificationStore()
 

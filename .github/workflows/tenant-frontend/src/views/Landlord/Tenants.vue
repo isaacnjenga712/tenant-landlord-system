@@ -65,7 +65,7 @@ import { leaseApi } from '../../api/lease.api'
 import type { Lease } from '../../types/lease'
 import { propertyApi } from '../../api/property.api'
 import { unitApi } from '../../api/unit.api'
-import { useNotificationStore } from '../../stores/notification'
+import { useNotificationStore } from '../../stores/notification.ts'
 
 interface TenantRow {
   leaseId: string

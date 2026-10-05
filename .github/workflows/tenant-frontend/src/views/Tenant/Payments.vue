@@ -55,7 +55,7 @@ import { paymentApi, type Payment } from '../../api/payment.api'
 import { mpesaApi } from '../../api/mpesa.api'
 import { leaseApi } from '../../api/lease.api'
 import { useAuthStore } from '../../stores/auth'
-import { useNotificationStore } from '../../stores/notification'
+import { useNotificationStore } from '../../stores/notification.ts'
 
 const payments = ref<Payment[]>([])
 const loading = ref(true)

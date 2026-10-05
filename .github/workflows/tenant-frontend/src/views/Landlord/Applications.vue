@@ -63,7 +63,7 @@ import { ref, onMounted } from 'vue'
 import AppLayout from '../../components/layout/AppLayout.vue'
 import { leaseApi } from '../../api/lease.api'
 import { propertyApi } from '../../api/property.api'
-import { useNotificationStore } from '../../stores/notification'
+import { useNotificationStore } from '../../stores/notification.ts'
 import type { Lease } from '../../types/lease'
 import type { Property } from '../../types/property'
 

@@ -30,7 +30,7 @@ import PropertyCard from '../../components/property/PropertyCard.vue'
 import { propertyApi } from '../../api/property.api'
 import { leaseApi } from '../../api/lease.api'
 import { useAuthStore } from '../../stores/auth'
-import { useNotificationStore } from '../../stores/notification'
+import { useNotificationStore } from '../../stores/notification.ts'
 import type { Property } from '../../types/property'
 
 const router = useRouter()

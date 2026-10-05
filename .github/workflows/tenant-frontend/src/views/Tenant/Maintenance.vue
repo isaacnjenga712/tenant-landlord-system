@@ -111,7 +111,7 @@ import { ticketApi, type Ticket, type TicketPriority } from '../../api/ticket.ap
 import { leaseApi } from '../../api/lease.api'
 import { unitApi } from '../../api/unit.api'
 import { useAuthStore } from '../../stores/auth'
-import { useNotificationStore } from '../../stores/notification'
+import { useNotificationStore } from '../../stores/notification.ts'
 
 const auth = useAuthStore()
 const notification = useNotificationStore()

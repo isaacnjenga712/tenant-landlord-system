@@ -29,7 +29,7 @@ public class GatewayApplication {
                 .path("/api/v1/users/**")
                 .uri("lb://AUTH-SERVICE"))
 
-            // ---------- Properties, Landlords, Units (property-management-service) ----------
+            // ---------- Properties, Landlords, Units ----------
             .route("property-service", r -> r
                 .path(
                     "/api/v1/properties/**",
@@ -43,12 +43,12 @@ public class GatewayApplication {
                 .path("/api/v1/leases/**")
                 .uri("lb://LEASE-SERVICE"))
 
-            // ---------- Payments (rent, history) ----------
+            // ---------- Payments ----------
             .route("payment", r -> r
                 .path("/api/v1/payments/**")
                 .uri("lb://PAYMENT-SERVICE"))
 
-            // ---------- Invoices + related billing (payment-service) ----------
+            // ---------- Invoices + related billing ----------
             .route("invoices", r -> r
                 .path(
                     "/api/v1/invoices/**",
@@ -75,9 +75,23 @@ public class GatewayApplication {
                 )
                 .uri("lb://MAINTENANCE-TICKET-SERVICE"))
 
-            // ---------- Notifications ----------
+            // ---------- Notifications (REST) ----------
             .route("notification", r -> r
                 .path("/api/v1/notifications/**")
+                .filters(f -> f.dedupeResponseHeader(
+                    "Access-Control-Allow-Origin Access-Control-Allow-Credentials",
+                    "RETAIN_FIRST"))
+                .uri("lb://NOTIFICATION-ENGINE"))
+
+            // ---------- Notifications (WebSocket / SockJS) ----------
+            .route("notification-ws", r -> r
+                .path(
+                    "/ws/notifications",
+                    "/ws/notifications/**"
+                )
+                .filters(f -> f.dedupeResponseHeader(
+                    "Access-Control-Allow-Origin Access-Control-Allow-Credentials",
+                    "RETAIN_FIRST"))
                 .uri("lb://NOTIFICATION-ENGINE"))
 
             .build();

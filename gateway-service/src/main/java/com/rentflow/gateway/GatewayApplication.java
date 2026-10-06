@@ -94,6 +94,16 @@ public class GatewayApplication {
                     "RETAIN_FIRST"))
                 .uri("lb://NOTIFICATION-ENGINE"))
 
+            // ---------- Admin dashboard ----------
+            // All /api/v1/admin/** routes require role=ADMIN
+            // (enforced by JwtAuthFilter before this route runs)
+            .route("admin", r -> r
+                .path("/api/v1/admin/**")
+                .filters(f -> f.dedupeResponseHeader(
+                    "Access-Control-Allow-Origin Access-Control-Allow-Credentials",
+                    "RETAIN_FIRST"))
+                .uri("lb://ADMIN-SERVICE"))
+
             .build();
     }
 }

@@ -28,6 +28,7 @@
         <module>maintainance-ticket-service</module>
         <module>notification-engine</module>
         <module>auth-service</module>
+        <module>admin-service</module>
     </modules>
 
     <properties>

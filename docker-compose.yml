@@ -382,6 +382,36 @@ services:
     networks:
       - rentflow-network
 
+  admin-service:
+    build:
+      context: ./admin-service
+      dockerfile: Dockerfile
+    container_name: rentflow-admin
+    environment:
+      SPRING_PROFILES_ACTIVE: "docker"
+      SERVER_PORT: "8087"
+      REDIS_HOST: "redis"
+      REDIS_PORT: "6379"
+      EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: "http://eureka-server:8761/eureka/"
+      ZIPKIN_URL: "http://zipkin:9411/api/v2/spans"
+      JAVA_OPTS: "-Xms256m -Xmx512m"
+    depends_on:
+      redis:
+        condition: "service_healthy"
+      eureka-server:
+        condition: "service_started"
+    ports:
+      - "8087:8087"
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8087/actuator/health"]
+      interval: "15s"
+      timeout: "5s"
+      retries: 5
+      start_period: "40s"
+    networks:
+      - rentflow-network
+    restart: unless-stopped
+
   # ============================================================
   # GATEWAY
   # ============================================================

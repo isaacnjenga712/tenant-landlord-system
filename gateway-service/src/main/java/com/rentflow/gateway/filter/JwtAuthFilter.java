@@ -57,6 +57,16 @@ public class JwtAuthFilter implements GlobalFilter, Ordered {
                 .parseSignedClaims(token)
                 .getPayload();
 
+            Object role = claims.get("role");
+
+            // Enforce ADMIN role for /api/v1/admin/**
+            if (path.startsWith("/api/v1/admin/")) {
+                if (role == null || !"ADMIN".equals(role.toString())) {
+                    exchange.getResponse().setStatusCode(HttpStatus.FORBIDDEN);
+                    return exchange.getResponse().setComplete();
+                }
+            }
+
             ServerHttpRequest.Builder mutated = exchange.getRequest().mutate();
 
             String publicId = claims.get("publicId", String.class);
@@ -67,7 +77,6 @@ public class JwtAuthFilter implements GlobalFilter, Ordered {
                 mutated.header("X-User-Email", claims.getSubject());
             }
 
-            Object role = claims.get("role");
             if (role != null) {
                 mutated.header("X-User-Role", role.toString());
             }

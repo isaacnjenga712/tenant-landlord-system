@@ -184,8 +184,8 @@ services:
 
   auth-service:
     build:
-      context: ./auth-service
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: auth-service/Dockerfile
     container_name: rentflow-auth
     environment:
       SPRING_PROFILES_ACTIVE: "docker"
@@ -213,8 +213,8 @@ services:
 
   lease-service:
     build:
-      context: ./lease-service
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: lease-service/Dockerfile
     container_name: rentflow-lease
     environment:
       SPRING_PROFILES_ACTIVE: "docker"

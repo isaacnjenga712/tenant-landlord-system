@@ -29,6 +29,13 @@
     </properties>
 
     <dependencies>
+        <!-- Internal shared module (DTOs, constants) -->
+        <dependency>
+            <groupId>com.platform</groupId>
+            <artifactId>common</artifactId>
+            <version>1.0.0-SNAPSHOT</version>
+        </dependency>
+
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-web</artifactId>
@@ -74,8 +81,8 @@
                 </exclusion>
             </exclusions>
         </dependency>
-        
-         <!-- Distributed tracing (Brave + Zipkin) -->
+
+        <!-- Distributed tracing (Brave + Zipkin) -->
         <dependency>
             <groupId>io.micrometer</groupId>
             <artifactId>micrometer-tracing-bridge-brave</artifactId>
@@ -163,14 +170,11 @@
             <artifactId>h2</artifactId>
             <scope>test</scope>
         </dependency>
-            <dependency>
 
+        <dependency>
             <groupId>io.micrometer</groupId>
-
             <artifactId>micrometer-registry-prometheus</artifactId>
-
         </dependency>
-
     </dependencies>
 
     <dependencyManagement>

@@ -32,6 +32,10 @@ public class SecurityConfig {
                 // ✅ Public auth endpoints — must match the /api/v1 prefix used by gateway + frontend
                 .requestMatchers("/api/v1/auth/**").permitAll()
 
+                // ✅ Internal service-to-service API — only reachable via Eureka
+                //    inside the Docker network. The gateway has no route for this prefix.
+                .requestMatchers("/api/v1/internal/**").permitAll()
+
                 // Everything else requires a valid JWT
                 .anyRequest().authenticated()
             )

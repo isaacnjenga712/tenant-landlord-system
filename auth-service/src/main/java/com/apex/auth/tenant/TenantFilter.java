@@ -20,6 +20,9 @@ import java.util.List;
  *
  * Public endpoints (login, register, refresh, actuator) are exempt —
  * they run before authentication and therefore have no tenant context yet.
+ *
+ * Internal endpoints (/api/v1/internal/**) are exempt too: they are only
+ * reachable from other services via Eureka and never carry a tenant header.
  */
 @Component
 @Order(Ordered.HIGHEST_PRECEDENCE)
@@ -32,12 +35,14 @@ public class TenantFilter extends OncePerRequestFilter {
     /**
      * Endpoints that do NOT require a tenant context.
      * These run before authentication, so the client cannot know the tenant yet.
+     * Internal endpoints are service-to-service calls without a tenant scope.
      */
     private static final List<String> PUBLIC_PATHS = List.of(
         "/api/v1/auth/login",
         "/api/v1/auth/register",
         "/api/v1/auth/refresh",
         "/api/v1/auth/callback",
+        "/api/v1/internal",     //  service-to-service internal API
         "/actuator",
         "/error"
     );

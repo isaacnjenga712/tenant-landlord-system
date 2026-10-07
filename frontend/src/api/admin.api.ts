@@ -7,6 +7,9 @@ import type {
   ServiceHealthDto,
   AuditLogDto,
   ApiEnvelope,
+  NotificationLogDto,
+  PaymentSummaryDto,
+  AdminPaymentDto,
 } from '../types/admin'
 
 const adminApi: AxiosInstance = axios.create({
@@ -32,10 +35,12 @@ async function unwrap<T>(p: Promise<{ data: ApiEnvelope<T> }>): Promise<T> {
 }
 
 export const AdminApi = {
+  // ---------- Overview ----------
   overview(): Promise<OverviewDto> {
     return unwrap(adminApi.get('/api/v1/admin/overview'))
   },
 
+  // ---------- Users ----------
   listUsers(params: {
     page?: number
     size?: number
@@ -62,10 +67,12 @@ export const AdminApi = {
     return unwrap(adminApi.post(`/api/v1/admin/users/${id}/reset-password`))
   },
 
+  // ---------- System ----------
   services(): Promise<ServiceHealthDto[]> {
     return unwrap(adminApi.get('/api/v1/admin/system/services'))
   },
 
+  // ---------- Audit ----------
   auditLogs(params: {
     page?: number
     size?: number
@@ -73,6 +80,35 @@ export const AdminApi = {
     action?: string
   }): Promise<PageResponse<AuditLogDto>> {
     return unwrap(adminApi.get('/api/v1/admin/audit-logs', { params }))
+  },
+
+  // ---------- Notifications ----------
+  notificationLogs(params: {
+    page?: number
+    size?: number
+    eventType?: string
+    channel?: string
+    status?: string
+  }): Promise<PageResponse<NotificationLogDto>> {
+    return unwrap(adminApi.get('/api/v1/admin/notifications/logs', { params }))
+  },
+
+  retryNotification(id: string): Promise<void> {
+    return unwrap(adminApi.post(`/api/v1/admin/notifications/retry/${id}`))
+  },
+
+  // ---------- Payments ----------
+  financeSummary(): Promise<PaymentSummaryDto> {
+    return unwrap(adminApi.get('/api/v1/admin/finance/summary'))
+  },
+
+  listPayments(params: {
+    page?: number
+    size?: number
+    status?: string
+    method?: string
+  }): Promise<PageResponse<AdminPaymentDto>> {
+    return unwrap(adminApi.get('/api/v1/admin/payments', { params }))
   },
 }
 

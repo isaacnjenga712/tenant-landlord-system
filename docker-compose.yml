@@ -356,8 +356,8 @@ services:
 
   notification-engine:
     build:
-      context: ./notification-engine
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: notification-engine/Dockerfile
     container_name: rentflow-notification
     environment:
       SPRING_PROFILES_ACTIVE: "docker"

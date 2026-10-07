@@ -269,8 +269,8 @@ services:
 
   maintainance-ticket-service:
     build:
-      context: ./maintainance-ticket-service
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: maintainance-ticket-service/Dockerfile
     container_name: rentflow-maintenance
     environment:
       SPRING_PROFILES_ACTIVE: "docker"

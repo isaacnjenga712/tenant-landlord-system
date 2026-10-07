@@ -69,3 +69,26 @@ export interface ApiEnvelope<T> {
   message: string | null
   timestamp: string
 }
+export interface NotificationLogDto {
+  id: string
+  recipientPublicId: string | null
+  eventType: string
+  channel: string
+  status: string
+  attempts: number
+  errorMessage: string | null
+  createdAt: string
+}
+
+export interface AdminPaymentDto {
+  id: string
+  invoiceId: string | null
+  tenantId: string
+  amount: number
+  method: string
+  gatewayTransactionId: string | null
+  status: string
+  appliedToInvoice: boolean | null
+  processedAt: string | null
+  createdAt: string
+}

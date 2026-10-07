@@ -17,7 +17,7 @@ public class AdminNotificationController {
     @GetMapping("/logs")
     public ApiResponse<PageResponse<NotificationLogDto>> logs(
             @RequestParam(defaultValue = "0") int page,
-            @RequestParam(defaultValue = "20") int size,
+            @RequestParam(defaultValue = "25") int size,
             @RequestParam(required = false) String eventType,
             @RequestParam(required = false) String channel,
             @RequestParam(required = false) String status) {

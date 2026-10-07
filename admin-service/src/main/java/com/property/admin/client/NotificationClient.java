@@ -8,6 +8,7 @@ import org.springframework.web.bind.annotation.*;
 
 @FeignClient(
         name = "NOTIFICATION-ENGINE",
+        contextId = "adminNotificationClient",
         path = "/api/v1/internal",
         fallback = NotificationClientFallback.class
 )

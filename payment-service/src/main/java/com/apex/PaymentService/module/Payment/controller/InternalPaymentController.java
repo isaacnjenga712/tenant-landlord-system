@@ -1,11 +1,11 @@
 package com.apex.PaymentService.module.Payment.controller;
 
 import com.apex.PaymentService.module.Payment.service.PaymentAdminService;
+import com.platform.common.dtos.PageResponse;
+import com.platform.common.dtos.admin.AdminPaymentDto;
 import com.platform.common.dtos.admin.PaymentSummaryDto;
 import lombok.RequiredArgsConstructor;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 
 /**
  * Internal endpoints — reachable ONLY from other services via Eureka.
@@ -22,5 +22,14 @@ public class InternalPaymentController {
     @GetMapping("/summary")
     public PaymentSummaryDto summary() {
         return service.summary();
+    }
+
+    @GetMapping("/list")
+    public PageResponse<AdminPaymentDto> list(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "25") int size,
+            @RequestParam(required = false) String status,
+            @RequestParam(required = false) String method) {
+        return service.list(page, size, status, method);
     }
 }

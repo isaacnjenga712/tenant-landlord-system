@@ -2,7 +2,7 @@ import { createRouter, createWebHistory, type RouteRecordRaw } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
 
 const routes: RouteRecordRaw[] = [
-  // Role-based landing — no more hardcoded top-level dashboard
+  // Role-based landing
   {
     path: '/',
     redirect: () => {
@@ -10,7 +10,7 @@ const routes: RouteRecordRaw[] = [
       const role = auth.user?.role
       if (role === 'TENANT') return '/tenant/dashboard'
       if (role === 'LANDLORD') return '/landlord/dashboard'
-      if (role === 'ADMIN') return '/admin/analytics'
+      if (role === 'ADMIN') return '/admin/dashboard'
       return '/login'
     },
   },
@@ -23,7 +23,7 @@ const routes: RouteRecordRaw[] = [
       const role = auth.user?.role
       if (role === 'TENANT') return '/tenant/dashboard'
       if (role === 'LANDLORD') return '/landlord/dashboard'
-      if (role === 'ADMIN') return '/admin/analytics'
+      if (role === 'ADMIN') return '/admin/dashboard'
       return '/login'
     },
   },
@@ -54,9 +54,23 @@ const routes: RouteRecordRaw[] = [
   { path: '/landlord/splits', name: 'landlord-splits', component: () => import('../views/Landlord/Splits.vue'), meta: { requiresAuth: true, roles: ['LANDLORD'] } },
   { path: '/landlord/notifications', name: 'landlord-notifications', component: () => import('../views/NotificationCenter.vue'), meta: { requiresAuth: true, roles: ['LANDLORD'] } },
 
-  // ---------- Admin ----------
-  { path: '/admin/users', name: 'admin-users', component: () => import('../views/Admin/Users.vue'), meta: { requiresAuth: true, roles: ['ADMIN'] } },
-  { path: '/admin/analytics', name: 'admin-analytics', component: () => import('../views/Admin/Analytics.vue'), meta: { requiresAuth: true, roles: ['ADMIN'] } },
+  // ---------- Admin (nested under AdminLayout) ----------
+  {
+    path: '/admin',
+    component: () => import('../layouts/AdminLayout.vue'),
+    meta: { requiresAuth: true, roles: ['ADMIN'] },
+    children: [
+      { path: '', redirect: { name: 'admin-dashboard' } },
+      { path: 'dashboard', name: 'admin-dashboard', component: () => import('../views/Admin/Dashboard.vue') },
+      { path: 'users', name: 'admin-users', component: () => import('../views/Admin/Users.vue') },
+      { path: 'payments', name: 'admin-payments', component: () => import('../views/Admin/Payments.vue') },
+      { path: 'maintenance', name: 'admin-maintenance', component: () => import('../views/Admin/Maintenance.vue') },
+      { path: 'notifications', name: 'admin-notifications', component: () => import('../views/Admin/Notifications.vue') },
+      { path: 'audit-logs', name: 'admin-audit-logs', component: () => import('../views/Admin/AuditLogs.vue') },
+      { path: 'system-health', name: 'admin-system-health', component: () => import('../views/Admin/SystemHealth.vue') },
+      { path: 'analytics', redirect: { name: 'admin-dashboard' } },
+    ],
+  },
 
   // ---------- Fallback ----------
   { path: '/:pathMatch(.*)*', name: 'not-found', component: () => import('../views/NotFound.vue') },
@@ -70,7 +84,7 @@ const router = createRouter({
 function homeFor(role?: string) {
   if (role === 'TENANT') return '/tenant/dashboard'
   if (role === 'LANDLORD') return '/landlord/dashboard'
-  if (role === 'ADMIN') return '/admin/analytics'
+  if (role === 'ADMIN') return '/admin/dashboard'
   return '/login'
 }
 

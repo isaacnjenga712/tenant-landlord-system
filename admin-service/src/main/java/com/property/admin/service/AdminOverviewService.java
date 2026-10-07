@@ -3,10 +3,12 @@ package com.property.admin.service;
 import com.platform.common.dtos.admin.LeaseStatsDto;
 import com.platform.common.dtos.admin.MaintenanceStatsDto;
 import com.platform.common.dtos.admin.PaymentSummaryDto;
+import com.platform.common.dtos.admin.PropertyStatsDto;
 import com.property.admin.client.AuthClient;
 import com.property.admin.client.LeaseClient;
 import com.property.admin.client.MaintenanceClient;
 import com.property.admin.client.PaymentClient;
+import com.property.admin.client.PropertyClient;
 import com.property.admin.dto.OverviewDto;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -24,6 +26,7 @@ public class AdminOverviewService {
     private final LeaseClient leaseClient;
     private final PaymentClient paymentClient;
     private final MaintenanceClient maintenanceClient;
+    private final PropertyClient propertyClient;
 
     @Cacheable(value = "adminOverview", key = "'overview'")
     public OverviewDto getOverview() {
@@ -36,6 +39,7 @@ public class AdminOverviewService {
         LeaseStatsDto leases = leaseClient.stats();
         MaintenanceStatsDto maintenance = maintenanceClient.stats();
         PaymentSummaryDto payments = paymentClient.summary();
+        PropertyStatsDto propertyStats = propertyClient.stats();
 
         return new OverviewDto(
                 totalUsers,
@@ -44,15 +48,15 @@ public class AdminOverviewService {
                 totalTenants,
                 leases.totalActive(),
                 maintenance.openTickets(),
+                propertyStats,
                 payments,
                 0L
         );
     }
 
     private long safeCount(LongSupplier supplier) {
-        try {
-            return supplier.getAsLong();
-        } catch (Exception e) {
+        try { return supplier.getAsLong(); }
+        catch (Exception e) {
             log.warn("Count call failed: {}", e.getMessage());
             return 0L;
         }

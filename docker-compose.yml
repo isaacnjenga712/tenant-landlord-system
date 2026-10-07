@@ -297,8 +297,8 @@ services:
 
   payment-service:
     build:
-      context: ./payment-service
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: payment-service/Dockerfile
     container_name: rentflow-payment
     environment:
       SPRING_PROFILES_ACTIVE: "docker"

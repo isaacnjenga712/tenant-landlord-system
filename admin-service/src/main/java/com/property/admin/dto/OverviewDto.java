@@ -1,6 +1,7 @@
 package com.property.admin.dto;
 
 import com.platform.common.dtos.admin.PaymentSummaryDto;
+import com.platform.common.dtos.admin.PropertyStatsDto;
 
 import java.io.Serializable;
 
@@ -11,6 +12,7 @@ public record OverviewDto(
         long totalTenants,
         long activeLeases,
         long openTickets,
+        PropertyStatsDto propertyStats,         // ← NEW
         PaymentSummaryDto paymentSummary,
         long unreadNotifications
 ) implements Serializable {

@@ -9,9 +9,12 @@ import java.util.Optional;
 import java.util.UUID;
 
 public interface PropertyRepository extends JpaRepository<Property, UUID> {
+
     Optional<Property> findByPropertyId(UUID propertyId);
+
     List<Property> findByLandlordId(UUID landlordId);
+
     List<Property> findByStatus(PropertyStatus status);
+
     List<Property> findByCity(String city);
-    // ✅ REMOVED: Optional<Unit> findByUnitId(UUID unitId); – it belongs in UnitRepository
 }

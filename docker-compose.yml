@@ -241,8 +241,8 @@ services:
 
   property-management-service:
     build:
-      context: ./property-management-service
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: property-management-service/Dockerfile
     container_name: rentflow-property
     environment:
       SPRING_PROFILES_ACTIVE: "docker"

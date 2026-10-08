@@ -136,3 +136,26 @@ Thumbs.db
 
 desktop.ini
 
+
+
+
+# Environment files
+
+.env
+
+.env.local
+
+.env.prod
+
+.env.*.local
+
+!.env.example
+
+
+
+# Test event payloads
+
+event.json
+
+event2.json
+

@@ -2,6 +2,7 @@
 package com.rentflow.gateway.config;
 
 import org.springframework.cloud.gateway.filter.ratelimit.KeyResolver;
+import org.springframework.cloud.gateway.filter.ratelimit.RedisRateLimiter;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Primary;
@@ -25,5 +26,21 @@ public class RateLimiterConfig {
                         ? exchange.getRequest().getRemoteAddress().getAddress().getHostAddress()
                         : "unknown"
         );
+    }
+
+    /**
+     * @Primary so Spring's auto-configured RequestRateLimiterGatewayFilterFactory
+     * injects this as the default. Routes can still reference authRateLimiter
+     * explicitly via .setRateLimiter(authRateLimiter).
+     */
+    @Bean
+    @Primary
+    public RedisRateLimiter defaultRateLimiter() {
+        return new RedisRateLimiter(20, 40, 1);
+    }
+
+    @Bean
+    public RedisRateLimiter authRateLimiter() {
+        return new RedisRateLimiter(5, 10, 1);
     }
 }

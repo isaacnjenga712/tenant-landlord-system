@@ -22,16 +22,18 @@
     <!-- MODULES – only include modules that actually exist           -->
     <!-- ========================================================== -->
         <modules>
-        <module>common</module>
-        <module>lease-service</module>
-        <module>property-management-service</module>
-        <module>maintainance-ticket-service</module>
-        <module>notification-engine</module>
-        <module>auth-service</module>
-        <module>admin-service</module>
-        <module>payment-service</module>
-        <module>mpesa-service</module>
-    </modules>
+    <module>common</module>
+    <module>eureka-server</module>            <!-- ← ADD -->
+    <module>gateway-service</module>          <!-- ← ADD -->
+    <module>auth-service</module>
+    <module>lease-service</module>
+    <module>property-management-service</module>
+    <module>maintainance-ticket-service</module>
+    <module>payment-service</module>
+    <module>mpesa-service</module>
+    <module>notification-engine</module>
+    <module>admin-service</module>
+</modules>
 
     <properties>
         <java.version>17</java.version>

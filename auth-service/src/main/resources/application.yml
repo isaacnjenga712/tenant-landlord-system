@@ -4,27 +4,28 @@ server:
 spring:
   application:
     name: auth-service
-
   datasource:
     url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://postgres:5432/rentflow}
     username: ${SPRING_DATASOURCE_USERNAME:rentflow}
     password: ${SPRING_DATASOURCE_PASSWORD:DB_PASSWORD}
     driver-class-name: org.postgresql.Driver
-
   jpa:
     hibernate:
-      ddl-auto: ${SPRING_JPA_HIBERNATE_DDL_AUTO:update}
+      ddl-auto: ${SPRING_JPA_HIBERNATE_DDL_AUTO:validate}
     properties:
       hibernate:
         dialect: org.hibernate.dialect.PostgreSQLDialect
         format_sql: true
     show-sql: false
-
   flyway:
     enabled: ${SPRING_FLYWAY_ENABLED:false}
     baseline-on-migrate: true
+    baseline-version: 3
+    baseline-description: "pre-Flyway schema captured from ddl-auto"
+    table: flyway_history_auth
     locations: classpath:db/migration
-
+    validate-on-migrate: true
+    out-of-order: false
   kafka:
     bootstrap-servers: ${SPRING_KAFKA_BOOTSTRAP_SERVERS:kafka:29092}
     consumer:
@@ -38,13 +39,6 @@ spring:
       value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
       properties:
         enable.idempotence: true
-        acks: all
-        retries: 3
-        spring.json.add.type.headers: false
-    listener:
-      auto-startup: ${SPRING_KAFKA_LISTENER_AUTO_STARTUP:true}
-      ack-mode: manual_immediate
-      concurrency: 3
 
 eureka:
   client:
@@ -59,18 +53,11 @@ eureka:
 
 jwt:
   access:
-    secret: ${JWT_ACCESS_SECRET:e4b0f0d0afc4308ddd637c719a33f8fe5878298520dea23c518fde391f6dedb5}
-    expiration: 900000
+    secret: ${JWT_ACCESS_SECRET}
+    expiration: ${JWT_ACCESS_EXPIRATION:900000}
   refresh:
-    secret: ${JWT_REFRESH_SECRET:b12ff623ef6015621aa8612402616ef873d05bc2dd43699f01f0f77c06d00ea0}
-    expiration: 604800000
-
-app:
-  kafka:
-    topic:
-      user-events: ${APP_KAFKA_TOPIC_USER_EVENTS:auth.user.events}
-    topics:
-      user-events: ${APP_KAFKA_TOPIC_USER_EVENTS:auth.user.events}
+    secret: ${JWT_REFRESH_SECRET}
+    expiration: ${JWT_REFRESH_EXPIRATION:604800000}
 
 management:
   endpoints:
@@ -89,33 +76,23 @@ management:
     tags:
       application: ${spring.application.name}
       env: ${SPRING_PROFILES_ACTIVE:default}
-    distribution:
-      percentiles-histogram:
-        http.server.requests: true
-      percentiles:
-        http.server.requests: 0.5, 0.95, 0.99
-      slo:
-        http.server.requests: 100ms, 500ms, 1s, 5s
   prometheus:
     metrics:
       export:
         enabled: true
   tracing:
     sampling:
-      probability: 1.0
+      probability: ${TRACING_SAMPLE_RATE:1.0}
     propagation:
       type: b3
   zipkin:
     tracing:
       endpoint: ${ZIPKIN_URL:http://zipkin:9411/api/v2/spans}
-  info:
-    env:
-      enabled: true
 
 logging:
   level:
-    org.springframework.security: INFO
-    com.apex.auth: DEBUG
+    com.apex.auth: ${LOG_LEVEL_AUTH:DEBUG}
     org.springframework.kafka: INFO
+    org.apache.kafka: WARN
   pattern:
     console: "%d{yyyy-MM-dd HH:mm:ss} [${spring.application.name},%X{traceId:-},%X{spanId:-}] - %msg%n"

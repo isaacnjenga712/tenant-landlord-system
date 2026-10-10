@@ -1,5 +1,6 @@
 package com.apex.auth.service;
 
+import com.apex.auth.entity.User;
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.security.Keys;
@@ -12,6 +13,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.UUID;
 import java.util.function.Function;
 
 @Service
@@ -29,8 +31,6 @@ public class JwtService {
     @Value("${jwt.refresh.expiration}")
     private Long refreshExpiration;
 
-    // ---- Access Token ----
-
     public String generateAccessToken(UserDetails userDetails) {
         return buildToken(new HashMap<>(), userDetails, accessExpiration, accessSecret);
     }
@@ -43,8 +43,6 @@ public class JwtService {
         final String username = extractUsernameFromAccessToken(token);
         return (username.equals(userDetails.getUsername())) && !isTokenExpired(token, accessSecret);
     }
-
-    // ---- Refresh Token ----
 
     public String generateRefreshToken(UserDetails userDetails) {
         return buildToken(new HashMap<>(), userDetails, refreshExpiration, refreshSecret);
@@ -62,12 +60,20 @@ public class JwtService {
         return extractClaim(token, Claims::getExpiration, refreshSecret);
     }
 
-    // ---- Common ----
-
     private String buildToken(Map<String, Object> extraClaims, UserDetails userDetails, Long expiration, String secret) {
+        String publicId = null;
+        String role = null;
+        if (userDetails instanceof User user) {
+            publicId = user.getPublicId() != null ? user.getPublicId().toString() : null;
+            role = user.getRole() != null ? user.getRole().name() : null;
+        }
+
         return Jwts.builder()
+                .id(UUID.randomUUID().toString())
                 .claims(extraClaims)
                 .subject(userDetails.getUsername())
+                .claim("publicId", publicId)
+                .claim("role", role)
                 .issuedAt(new Date(System.currentTimeMillis()))
                 .expiration(new Date(System.currentTimeMillis() + expiration))
                 .signWith(getSigningKey(secret))

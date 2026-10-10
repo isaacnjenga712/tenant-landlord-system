@@ -1,13 +1,13 @@
 server:
-  port: ${SERVER_PORT:8090}          # <-- make it overridable via env var
+  port: ${SERVER_PORT:8080}
 
 spring:
   application:
     name: auth-service
   datasource:
-    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/tenant_landlord_auth}
-    username: ${SPRING_DATASOURCE_USERNAME:postgres}
-    password: ${SPRING_DATASOURCE_PASSWORD:apex123}
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://postgres:5432/rentflow}
+    username: ${SPRING_DATASOURCE_USERNAME:rentflow}
+    password: ${SPRING_DATASOURCE_PASSWORD:DB_PASSWORD}
     driver-class-name: org.postgresql.Driver
   jpa:
     hibernate:
@@ -18,43 +18,81 @@ spring:
         format_sql: true
     show-sql: false
   flyway:
-    enabled: ${SPRING_FLYWAY_ENABLED:true}
+    enabled: ${SPRING_FLYWAY_ENABLED:false}
     baseline-on-migrate: true
-    locations: ${SPRING_FLYWAY_LOCATIONS:classpath:db/migration}
+    baseline-version: 3
+    baseline-description: "pre-Flyway schema captured from ddl-auto"
+    table: flyway_history_auth
+    locations: classpath:db/migration
+    validate-on-migrate: true
+    out-of-order: false
   kafka:
-    bootstrap-servers: ${SPRING_KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+    bootstrap-servers: ${SPRING_KAFKA_BOOTSTRAP_SERVERS:kafka:29092}
     consumer:
       group-id: ${SPRING_KAFKA_CONSUMER_GROUP_ID:auth-service-group}
-    listener:
-      auto-startup: ${SPRING_KAFKA_LISTENER_AUTO_STARTUP:true}
+      auto-offset-reset: earliest
+      enable-auto-commit: false
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
+      properties:
+        enable.idempotence: true
+
+eureka:
+  client:
+    service-url:
+      defaultZone: ${EUREKA_CLIENT_SERVICEURL_DEFAULTZONE:http://eureka-server:8761/eureka/}
+    register-with-eureka: true
+    fetch-registry: true
+  instance:
+    prefer-ip-address: true
+    lease-renewal-interval-in-seconds: 10
+    lease-expiration-duration-in-seconds: 30
 
 jwt:
   access:
-    secret: ${JWT_ACCESS_SECRET:404E635266556A586E3272357538782F413F4428472B4B6250645367566B5970}
-    expiration: 900000      # 15 minutes
+    secret: ${JWT_ACCESS_SECRET}
+    expiration: ${JWT_ACCESS_EXPIRATION:900000}
   refresh:
-    secret: ${JWT_REFRESH_SECRET:607164346A576E5A7234753778217A25432A462D4A614E645267556B587032}
-    expiration: 604800000   # 7 days
+    secret: ${JWT_REFRESH_SECRET}
+    expiration: ${JWT_REFRESH_EXPIRATION:604800000}
 
-# ============================================================
-# Actuator — exposes /actuator/health and /actuator/info
-# ============================================================
 management:
   endpoints:
     web:
       exposure:
-        include: health,info
+        include: health,info,prometheus,metrics
       base-path: /actuator
   endpoint:
     health:
       show-details: always
       probes:
         enabled: true
-  info:
-    env:
+    prometheus:
       enabled: true
+  metrics:
+    tags:
+      application: ${spring.application.name}
+      env: ${SPRING_PROFILES_ACTIVE:default}
+  prometheus:
+    metrics:
+      export:
+        enabled: true
+  tracing:
+    sampling:
+      probability: ${TRACING_SAMPLE_RATE:1.0}
+    propagation:
+      type: b3
+  zipkin:
+    tracing:
+      endpoint: ${ZIPKIN_URL:http://zipkin:9411/api/v2/spans}
 
 logging:
   level:
-    org.springframework.security: DEBUG
-    com.landten.auth: DEBUG
+    com.apex.auth: ${LOG_LEVEL_AUTH:DEBUG}
+    org.springframework.kafka: INFO
+    org.apache.kafka: WARN
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss} [${spring.application.name},%X{traceId:-},%X{spanId:-}] - %msg%n"

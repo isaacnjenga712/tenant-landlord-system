@@ -1,36 +1,37 @@
-FROM maven:3.9.6-eclipse-temurin-17 AS build
+# syntax=docker/dockerfile:1.4
+
+# ---------- Build stage ----------
+FROM maven:3.9-eclipse-temurin-17-alpine AS build
+
+WORKDIR /build
+
+COPY pom.xml /build/pom.xml
+RUN --mount=type=cache,target=/root/.m2 \
+    cd /build && mvn -B -ntp install -N -Dmaven.test.skip=true
+
+COPY common /build/common
+RUN --mount=type=cache,target=/root/.m2 \
+    cd /build/common && mvn -B -ntp clean install -Dmaven.test.skip=true
+
+COPY property-management-service /build/property-management-service
+RUN --mount=type=cache,target=/root/.m2 \
+    cd /build/property-management-service && mvn -B -ntp clean package -Dmaven.test.skip=true
+
+# ---------- Runtime stage ----------
+FROM eclipse-temurin:17-jre
+
+RUN apt-get update && apt-get install -y --no-install-recommends wget \
+    && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 
-# Install root parent pom
-COPY pom.xml /tmp/root-pom.xml
-RUN cd /tmp && \
-    mvn install:install-file -Dfile=root-pom.xml \
-        -DgroupId=com.platform \
-        -DartifactId=tenant-landlord-system \
-        -Dversion=1.0.0-SNAPSHOT \
-        -Dpackaging=pom
+COPY --from=build /build/property-management-service/target/*.jar app.jar
 
-# Install common module
-COPY common /tmp/common
-RUN cd /tmp/common && mvn clean install -DskipTests
-
-# Copy service source
-COPY property-management-service/pom.xml .
-COPY property-management-service/src ./src
-
-# Build with retry
-RUN for i in 1 2 3; do \
-        echo "Attempt $i to build property-management-service..." && \
-        mvn clean package -DskipTests && \
-        echo "Build successful!" && \
-        break || \
-        echo "Build failed, retrying... (attempt $i)" && \
-        sleep 5; \
-    done
-
-FROM eclipse-temurin:17-jre-alpine
-WORKDIR /app
-COPY --from=build /app/target/*.jar app.jar
 EXPOSE 8082
-ENTRYPOINT ["java", "-jar", "app.jar"]
+
+ENV JAVA_OPTS="-XX:+UseContainerSupport -XX:MaxRAMPercentage=75.0 -XX:+ExitOnOutOfMemoryError"
+
+HEALTHCHECK --interval=30s --timeout=5s --start-period=40s --retries=3 \
+    CMD wget --no-verbose --tries=1 --spider http://localhost:8082/actuator/health || exit 1
+
+ENTRYPOINT ["sh", "-c", "exec java $JAVA_OPTS -jar app.jar"]

@@ -17,6 +17,17 @@ public class TicketResolvedEvent implements Serializable {
     private UUID ticketId;
     private UUID unitId;
     private UUID tenantId;
+    private UUID landlordId;
     private String title;
     private UUID correlationId;
+    private String eventType;
+
+    public TicketResolvedEvent(UUID ticketId, UUID unitId, UUID tenantId,
+                               String title, UUID correlationId) {
+        this.ticketId = ticketId;
+        this.unitId = unitId;
+        this.tenantId = tenantId;
+        this.title = title;
+        this.correlationId = correlationId;
+    }
 }

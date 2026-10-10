@@ -1,6 +1,8 @@
+
 package com.rentflow.gateway.config;
 
 import org.springframework.cloud.gateway.filter.ratelimit.KeyResolver;
+import org.springframework.cloud.gateway.filter.ratelimit.RedisRateLimiter;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Primary;
@@ -9,55 +11,36 @@ import reactor.core.publisher.Mono;
 @Configuration
 public class RateLimiterConfig {
 
+    @Bean
+    @Primary
+    public KeyResolver userKeyResolver() {
+        return exchange -> Mono.justOrEmpty(
+                        exchange.getRequest().getHeaders().getFirst("X-User-Id"))
+                .defaultIfEmpty("anonymous");
+    }
+
+    @Bean
+    public KeyResolver ipKeyResolver() {
+        return exchange -> Mono.just(
+                exchange.getRequest().getRemoteAddress() != null
+                        ? exchange.getRequest().getRemoteAddress().getAddress().getHostAddress()
+                        : "unknown"
+        );
+    }
+
     /**
-     * Rate-limit by client IP. Used for public routes (login, callback).
+     * @Primary so Spring's auto-configured RequestRateLimiterGatewayFilterFactory
+     * injects this as the default. Routes can still reference authRateLimiter
+     * explicitly via .setRateLimiter(authRateLimiter).
      */
     @Bean
     @Primary
-    public KeyResolver ipKeyResolver() {
-        return exchange -> {
-            if (exchange.getRequest().getRemoteAddress() == null) {
-                return Mono.just("unknown");
-            }
-            String ip = exchange.getRequest()
-                    .getRemoteAddress()
-                    .getAddress()
-                    .getHostAddress();
-            return Mono.just("ip:" + ip);
-        };
+    public RedisRateLimiter defaultRateLimiter() {
+        return new RedisRateLimiter(20, 40, 1);
     }
 
-    /**
-     * Rate-limit by authenticated user (X-User-Id set by JwtAuthFilter),
-     * falling back to tenant, then IP.
-     */
     @Bean
-    public KeyResolver userKeyResolver() {
-        return exchange -> {
-            String userId = exchange.getRequest().getHeaders().getFirst("X-User-Id");
-            if (userId != null && !userId.isBlank()) {
-                return Mono.just("user:" + userId);
-            }
-            String tenantId = exchange.getRequest().getHeaders().getFirst("X-Tenant-ID");
-            if (tenantId != null && !tenantId.isBlank()) {
-                return Mono.just("tenant:" + tenantId);
-            }
-            if (exchange.getRequest().getRemoteAddress() != null) {
-                return Mono.just("ip:" + exchange.getRequest()
-                        .getRemoteAddress().getAddress().getHostAddress());
-            }
-            return Mono.just("unknown");
-        };
-    }
-
-    /**
-     * Rate-limit by tenant. Useful for tenant-scoped fairness.
-     */
-    @Bean
-    public KeyResolver tenantKeyResolver() {
-        return exchange -> {
-            String tenantId = exchange.getRequest().getHeaders().getFirst("X-Tenant-ID");
-            return Mono.just("tenant:" + (tenantId != null ? tenantId : "anonymous"));
-        };
+    public RedisRateLimiter authRateLimiter() {
+        return new RedisRateLimiter(5, 10, 1);
     }
 }

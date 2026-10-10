@@ -17,7 +17,9 @@ public class LeaseTerminatedEvent implements Serializable {
     private UUID leaseId;
     private UUID propertyId;
     private UUID tenantId;
+    private UUID landlordId;
     private LocalDate terminationDate;
     private String reason;
     private UUID correlationId;
+    private String eventType;
 }

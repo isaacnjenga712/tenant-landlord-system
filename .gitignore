@@ -1,9 +1,25 @@
 
+# ============================================================================
+
+# RentFlow .gitignore
+
+# ============================================================================
+
+
+
+# ---------- Java / Maven ----------
+
 HELP.md
 
 target/
 
-.mvn/wrapper/maven-wrapper.jar
+*.class
+
+*.jar
+
+*.war
+
+!.mvn/wrapper/maven-wrapper.jar
 
 !**/src/main/**/target/
 
@@ -11,17 +27,7 @@ target/
 
 
 
-### Environment & Secrets ###
-
-.env
-
-.env.*
-
-!.env.example
-
-
-
-### STS ###
+# ---------- IDE ----------
 
 .apt_generated
 
@@ -37,10 +43,6 @@ target/
 
 .sts4-cache
 
-
-
-### IntelliJ IDEA ###
-
 .idea
 
 *.iws
@@ -49,9 +51,7 @@ target/
 
 *.ipr
 
-
-
-### NetBeans ###
+.vscode/
 
 /nbproject/private/
 
@@ -69,33 +69,21 @@ build/
 
 
 
-### VS Code ###
-
-.vscode/
-
-
-
-### Logs ###
-
-*.log
-
-logs/
-
-
-
-### OS ###
+# ---------- OS ----------
 
 .DS_Store
 
 Thumbs.db
 
+desktop.ini
 
 
-### Node (if frontend added) ###
 
-node_modules/
+# ---------- Logs ----------
 
-dist/
+*.log
+
+logs/
 
 npm-debug.log*
 
@@ -103,24 +91,19 @@ yarn-debug.log*
 
 
 
-### Testing ###
+# ---------- Testing ----------
 
 surefire-reports/
 
 
 
+# ---------- Node / Vue ----------
 
-# Kafka test event files
-
-event.json
-
-event2.json
-
-
-
-# Frontend build artifacts
+node_modules/
 
 frontend/node_modules/
+
+dist/
 
 frontend/dist/
 
@@ -130,16 +113,7 @@ frontend/.env.local
 
 
 
-# Windows junk
-
-Thumbs.db
-
-desktop.ini
-
-
-
-
-# Environment files
+# ---------- Environment ----------
 
 .env
 
@@ -149,15 +123,33 @@ desktop.ini
 
 .env.*.local
 
+.env.*
+
 !.env.example
 
+!.env.prod.example
 
 
-# Test event payloads
+
+# ---------- TLS certificates ----------
+
+nginx/certs/*.pem
+
+nginx/certs/*.key
+
+!nginx/certs/.gitkeep
+
+
+
+# ---------- Test fixtures ----------
 
 event.json
 
 event2.json
 
 
+
+# ---------- Flyway intermediates ----------
+
 scripts/_baseline/
+

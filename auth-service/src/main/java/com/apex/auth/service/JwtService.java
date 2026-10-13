@@ -63,9 +63,11 @@ public class JwtService {
     private String buildToken(Map<String, Object> extraClaims, UserDetails userDetails, Long expiration, String secret) {
         String publicId = null;
         String role = null;
+        String orgId = null;
         if (userDetails instanceof User user) {
             publicId = user.getPublicId() != null ? user.getPublicId().toString() : null;
             role = user.getRole() != null ? user.getRole().name() : null;
+            orgId = user.getOrgId() != null ? user.getOrgId().toString() : null;
         }
 
         return Jwts.builder()
@@ -74,6 +76,7 @@ public class JwtService {
                 .subject(userDetails.getUsername())
                 .claim("publicId", publicId)
                 .claim("role", role)
+                .claim("org_id", orgId)
                 .issuedAt(new Date(System.currentTimeMillis()))
                 .expiration(new Date(System.currentTimeMillis() + expiration))
                 .signWith(getSigningKey(secret))

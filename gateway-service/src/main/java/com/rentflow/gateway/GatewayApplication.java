@@ -1,6 +1,7 @@
 package com.rentflow.gateway;
 
 import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.cloud.client.discovery.EnableDiscoveryClient;
@@ -19,6 +20,33 @@ public class GatewayApplication {
     private final RedisRateLimiter defaultRateLimiter;
     private final KeyResolver ipKeyResolver;
     private final KeyResolver userKeyResolver;
+
+    // ---- Route targets ----
+    // Default: lb:// (Eureka). Override in application-local.yml with direct URLs.
+
+    @Value("${services.auth.uri:lb://AUTH-SERVICE}")
+    private String authUri;
+
+    @Value("${services.property.uri:lb://PROPERTY-MANAGEMENT-SERVICE}")
+    private String propertyUri;
+
+    @Value("${services.lease.uri:lb://LEASE-SERVICE}")
+    private String leaseUri;
+
+    @Value("${services.payment.uri:lb://PAYMENT-SERVICE}")
+    private String paymentUri;
+
+    @Value("${services.mpesa.uri:lb://MPESA-SERVICE}")
+    private String mpesaUri;
+
+    @Value("${services.maintenance.uri:lb://MAINTENANCE-TICKET-SERVICE}")
+    private String maintenanceUri;
+
+    @Value("${services.notification.uri:lb://NOTIFICATION-ENGINE}")
+    private String notificationUri;
+
+    @Value("${services.admin.uri:lb://ADMIN-SERVICE}")
+    private String adminUri;
 
     public GatewayApplication(
             @Qualifier("authRateLimiter") RedisRateLimiter authRateLimiter,
@@ -47,7 +75,7 @@ public class GatewayApplication {
                     c.setKeyResolver(ipKeyResolver);
                     c.setStatusCode(HttpStatus.TOO_MANY_REQUESTS);
                 }))
-                .uri("lb://AUTH-SERVICE"))
+                .uri(authUri))
 
             // ---------- Users ----------
             .route("users", r -> r
@@ -57,7 +85,7 @@ public class GatewayApplication {
                     c.setKeyResolver(userKeyResolver);
                     c.setStatusCode(HttpStatus.TOO_MANY_REQUESTS);
                 }))
-                .uri("lb://AUTH-SERVICE"))
+                .uri(authUri))
 
             // ---------- Properties, Landlords, Units ----------
             .route("property-service", r -> r
@@ -71,7 +99,7 @@ public class GatewayApplication {
                     c.setKeyResolver(userKeyResolver);
                     c.setStatusCode(HttpStatus.TOO_MANY_REQUESTS);
                 }))
-                .uri("lb://PROPERTY-MANAGEMENT-SERVICE"))
+                .uri(propertyUri))
 
             // ---------- Leases ----------
             .route("lease", r -> r
@@ -81,7 +109,7 @@ public class GatewayApplication {
                     c.setKeyResolver(userKeyResolver);
                     c.setStatusCode(HttpStatus.TOO_MANY_REQUESTS);
                 }))
-                .uri("lb://LEASE-SERVICE"))
+                .uri(leaseUri))
 
             // ---------- Payments ----------
             .route("payment", r -> r
@@ -91,7 +119,7 @@ public class GatewayApplication {
                     c.setKeyResolver(userKeyResolver);
                     c.setStatusCode(HttpStatus.TOO_MANY_REQUESTS);
                 }))
-                .uri("lb://PAYMENT-SERVICE"))
+                .uri(paymentUri))
 
             // ---------- Invoices + related billing ----------
             .route("invoices", r -> r
@@ -110,7 +138,7 @@ public class GatewayApplication {
                     c.setKeyResolver(userKeyResolver);
                     c.setStatusCode(HttpStatus.TOO_MANY_REQUESTS);
                 }))
-                .uri("lb://PAYMENT-SERVICE"))
+                .uri(paymentUri))
 
             // ---------- M-Pesa STK push ----------
             .route("mpesa", r -> r
@@ -120,7 +148,7 @@ public class GatewayApplication {
                     c.setKeyResolver(userKeyResolver);
                     c.setStatusCode(HttpStatus.TOO_MANY_REQUESTS);
                 }))
-                .uri("lb://MPESA-SERVICE"))
+                .uri(mpesaUri))
 
             // ---------- Maintenance tickets ----------
             .route("maintenance", r -> r
@@ -133,7 +161,7 @@ public class GatewayApplication {
                     c.setKeyResolver(userKeyResolver);
                     c.setStatusCode(HttpStatus.TOO_MANY_REQUESTS);
                 }))
-                .uri("lb://MAINTENANCE-TICKET-SERVICE"))
+                .uri(maintenanceUri))
 
             // ---------- Notifications (REST) ----------
             .route("notification", r -> r
@@ -147,7 +175,7 @@ public class GatewayApplication {
                     .dedupeResponseHeader(
                         "Access-Control-Allow-Origin Access-Control-Allow-Credentials",
                         "RETAIN_FIRST"))
-                .uri("lb://NOTIFICATION-ENGINE"))
+                .uri(notificationUri))
 
             // ---------- Notifications (WebSocket / SockJS — no rate limit) ----------
             .route("notification-ws", r -> r
@@ -158,7 +186,7 @@ public class GatewayApplication {
                 .filters(f -> f.dedupeResponseHeader(
                     "Access-Control-Allow-Origin Access-Control-Allow-Credentials",
                     "RETAIN_FIRST"))
-                .uri("lb://NOTIFICATION-ENGINE"))
+                .uri(notificationUri))
 
             // ---------- Admin dashboard ----------
             .route("admin", r -> r
@@ -172,7 +200,7 @@ public class GatewayApplication {
                     .dedupeResponseHeader(
                         "Access-Control-Allow-Origin Access-Control-Allow-Credentials",
                         "RETAIN_FIRST"))
-                .uri("lb://ADMIN-SERVICE"))
+                .uri(adminUri))
 
             .build();
     }

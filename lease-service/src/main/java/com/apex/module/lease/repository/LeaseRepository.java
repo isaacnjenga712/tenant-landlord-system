@@ -11,32 +11,39 @@ import org.springframework.data.repository.query.Param;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 public interface LeaseRepository extends JpaRepository<Lease, UUID>,
                                         JpaSpecificationExecutor<Lease> {
 
-    List<Lease> findByTenantId(UUID tenantId);
+    // ---- org-scoped lookups ----
 
-    List<Lease> findByLandlordId(UUID landlordId);
+    Optional<Lease> findByIdAndOrgId(UUID id, UUID orgId);
 
-    List<Lease> findByPropertyId(UUID propertyId);
+    List<Lease> findByOrgIdAndTenantId(UUID orgId, UUID tenantId);
 
-    List<Lease> findByStatus(LeaseStatus status);
+    List<Lease> findByOrgIdAndLandlordId(UUID orgId, UUID landlordId);
 
-    @Query("SELECT l FROM Lease l WHERE l.propertyId = :propertyId AND " +
-           "(l.startDate <= :endDate AND l.endDate >= :startDate)")
-    List<Lease> findOverlappingLeases(@Param("propertyId") UUID propertyId,
+    List<Lease> findByOrgIdAndPropertyId(UUID orgId, UUID propertyId);
+
+    List<Lease> findByOrgIdAndStatus(UUID orgId, LeaseStatus status);
+
+    @Query("SELECT l FROM Lease l WHERE l.orgId = :orgId " +
+           "AND l.propertyId = :propertyId " +
+           "AND l.startDate <= :endDate AND l.endDate >= :startDate")
+    List<Lease> findOverlappingLeases(@Param("orgId") UUID orgId,
+                                      @Param("propertyId") UUID propertyId,
                                       @Param("startDate") LocalDate startDate,
                                       @Param("endDate") LocalDate endDate);
 
-    // ---------- KPI counts for admin dashboard ----------
+    // ---- org-scoped KPI counts ----
 
-    long countByStatus(LeaseStatus status);
+    long countByOrgIdAndStatus(UUID orgId, LeaseStatus status);
 
-    long countByCreatedAtAfter(LocalDateTime after);
+    long countByOrgIdAndCreatedAtAfter(UUID orgId, LocalDateTime after);
 
-    long countByStatusAndUpdatedAtAfter(LeaseStatus status, LocalDateTime after);
+    long countByOrgIdAndStatusAndUpdatedAtAfter(UUID orgId, LeaseStatus status, LocalDateTime after);
 
-    long countByCreatedAtBetween(LocalDateTime from, LocalDateTime to);
+    long countByOrgIdAndCreatedAtBetween(UUID orgId, LocalDateTime from, LocalDateTime to);
 }

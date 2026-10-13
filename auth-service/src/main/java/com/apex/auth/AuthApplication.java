@@ -5,12 +5,15 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.kafka.annotation.EnableKafka;
 import org.springframework.scheduling.annotation.EnableScheduling;
 
-@SpringBootApplication
+@SpringBootApplication(scanBasePackages = {
+        "com.apex.auth",
+        "com.platform.common"
+})
 @EnableKafka
 @EnableScheduling
 public class AuthApplication {
 
-	public static void main(String[] args) {
+    public static void main(String[] args) {
         SpringApplication.run(AuthApplication.class, args);
     }
 }

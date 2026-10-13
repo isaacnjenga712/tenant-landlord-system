@@ -5,7 +5,10 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.data.jpa.repository.config.EnableJpaAuditing;
 import org.springframework.transaction.annotation.EnableTransactionManagement;
 
-@SpringBootApplication
+@SpringBootApplication(scanBasePackages = {
+        "com.apex.module.lease",
+        "com.platform.common"
+})
 @EnableTransactionManagement
 @EnableJpaAuditing  // Enables auditing for @CreatedDate, @LastModifiedDate (optional)
 public class LeaseServiceApplication {

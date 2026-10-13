@@ -1,5 +1,6 @@
 package com.apex.module.lease.service.impl;
 
+import com.platform.common.tenant.TenantContext;
 import com.apex.module.lease.dto.request.LeaseCreateRequest;
 import com.apex.module.lease.dto.request.LeaseUpdateRequest;
 import com.apex.module.lease.dto.response.LeaseListResponse;
@@ -42,11 +43,14 @@ public class LeaseServiceImpl implements LeaseService {
 
     @Override
     public LeaseResponse createLease(LeaseCreateRequest request) {
+        UUID orgId = TenantContext.require();
+
         if (request.getStartDate().isAfter(request.getEndDate())) {
             throw new LeaseValidationException("Start date must be before or equal to end date");
         }
 
         List<Lease> overlapping = leaseRepository.findOverlappingLeases(
+                orgId,
                 request.getPropertyId(),
                 request.getStartDate(),
                 request.getEndDate()
@@ -56,14 +60,12 @@ public class LeaseServiceImpl implements LeaseService {
         }
 
         Lease lease = leaseMapper.toEntity(request);
+        lease.setOrgId(orgId);
         lease.setStatus(LeaseStatus.DRAFT);
         Lease saved = leaseRepository.save(lease);
         LeaseResponse response = leaseMapper.toResponse(saved);
 
-        // Saga kickoff
         leaseEventProducer.publishLeaseCreationRequested(response);
-
-        // Notify tenant that application was received
         leaseEventProducer.publishLeaseCreated(response);
 
         return response;
@@ -71,14 +73,16 @@ public class LeaseServiceImpl implements LeaseService {
 
     @Override
     public LeaseResponse getLease(UUID id) {
-        Lease lease = leaseRepository.findById(id)
+        UUID orgId = TenantContext.require();
+        Lease lease = leaseRepository.findByIdAndOrgId(id, orgId)
                 .orElseThrow(() -> new LeaseNotFoundException("Lease not found with id: " + id));
         return leaseMapper.toResponse(lease);
     }
 
     @Override
     public LeaseResponse updateLease(UUID id, LeaseUpdateRequest request) {
-        Lease lease = leaseRepository.findById(id)
+        UUID orgId = TenantContext.require();
+        Lease lease = leaseRepository.findByIdAndOrgId(id, orgId)
                 .orElseThrow(() -> new LeaseNotFoundException("Lease not found with id: " + id));
 
         if (lease.getStatus() == LeaseStatus.TERMINATED || lease.getStatus() == LeaseStatus.EXPIRED) {
@@ -98,7 +102,7 @@ public class LeaseServiceImpl implements LeaseService {
                 throw new LeaseValidationException("Start date must be before or equal to end date");
             }
             List<Lease> overlapping = leaseRepository.findOverlappingLeases(
-                    lease.getPropertyId(), newStart, newEnd);
+                    orgId, lease.getPropertyId(), newStart, newEnd);
             overlapping.removeIf(l -> l.getId().equals(lease.getId()));
             if (!overlapping.isEmpty()) {
                 throw new LeaseOverlapException("Updated dates overlap with another lease");
@@ -111,7 +115,8 @@ public class LeaseServiceImpl implements LeaseService {
 
     @Override
     public void cancelLease(UUID id) {
-        Lease lease = leaseRepository.findById(id)
+        UUID orgId = TenantContext.require();
+        Lease lease = leaseRepository.findByIdAndOrgId(id, orgId)
                 .orElseThrow(() -> new LeaseNotFoundException("Lease not found"));
         if (lease.getStatus() != LeaseStatus.DRAFT) {
             throw new LeaseCancellationException("Only DRAFT leases can be cancelled");
@@ -122,7 +127,8 @@ public class LeaseServiceImpl implements LeaseService {
 
     @Override
     public void terminateLease(UUID id, LocalDate terminationDate) {
-        Lease lease = leaseRepository.findById(id)
+        UUID orgId = TenantContext.require();
+        Lease lease = leaseRepository.findByIdAndOrgId(id, orgId)
                 .orElseThrow(() -> new LeaseNotFoundException("Lease not found"));
         if (lease.getStatus() != LeaseStatus.ACTIVE) {
             throw new LeaseTerminationException("Only ACTIVE leases can be terminated");
@@ -134,14 +140,14 @@ public class LeaseServiceImpl implements LeaseService {
         lease.setStatus(LeaseStatus.TERMINATED);
         Lease saved = leaseRepository.save(lease);
 
-        // Notify both tenant + landlord
         leaseEventProducer.publishLeaseTerminated(
                 leaseMapper.toResponse(saved), terminationDate, "Terminated by landlord");
     }
 
     @Override
     public LeaseResponse renewLease(UUID id, LocalDate newEndDate) {
-        Lease lease = leaseRepository.findById(id)
+        UUID orgId = TenantContext.require();
+        Lease lease = leaseRepository.findByIdAndOrgId(id, orgId)
                 .orElseThrow(() -> new LeaseNotFoundException("Lease not found"));
         if (lease.getStatus() != LeaseStatus.ACTIVE) {
             throw new LeaseRenewalException("Only ACTIVE leases can be renewed");
@@ -151,7 +157,7 @@ public class LeaseServiceImpl implements LeaseService {
         }
 
         List<Lease> overlapping = leaseRepository.findOverlappingLeases(
-                lease.getPropertyId(), lease.getStartDate(), newEndDate);
+                orgId, lease.getPropertyId(), lease.getStartDate(), newEndDate);
         overlapping.removeIf(l -> l.getId().equals(lease.getId()));
         if (!overlapping.isEmpty()) {
             throw new LeaseOverlapException("Renewal period overlaps with another lease");
@@ -162,13 +168,10 @@ public class LeaseServiceImpl implements LeaseService {
         return leaseMapper.toResponse(renewed);
     }
 
-    // ============================================================
-    // APPROVE — landlord accepts a DRAFT application
-    // ============================================================
-
     @Override
     public LeaseResponse approveLease(UUID id) {
-        Lease lease = leaseRepository.findById(id)
+        UUID orgId = TenantContext.require();
+        Lease lease = leaseRepository.findByIdAndOrgId(id, orgId)
                 .orElseThrow(() -> new LeaseNotFoundException("Lease not found with id: " + id));
 
         if (lease.getStatus() != LeaseStatus.DRAFT) {
@@ -180,24 +183,22 @@ public class LeaseServiceImpl implements LeaseService {
         Lease saved = leaseRepository.save(lease);
         LeaseResponse response = leaseMapper.toResponse(saved);
 
-        // Notify downstream services + both tenant and landlord
         leaseEventProducer.publishLeaseCreated(response);
         leaseEventProducer.publishLeaseApproved(response);
 
         return response;
     }
 
-    // ============================================================
-    // LIST
-    // ============================================================
-
     @Override
     public LeaseListResponse listLeases(UUID tenantId, UUID landlordId, UUID propertyId,
                                         LeaseStatus status, LocalDate startDate, LocalDate endDate,
                                         int page, int size) {
+        UUID orgId = TenantContext.require();
+
         Pageable pageable = PageRequest.of(page, size);
         Specification<Lease> spec = Specification
-                .where(LeaseSpecification.hasTenantId(tenantId))
+                .where(LeaseSpecification.hasOrgId(orgId))
+                .and(LeaseSpecification.hasTenantId(tenantId))
                 .and(LeaseSpecification.hasLandlordId(landlordId))
                 .and(LeaseSpecification.hasPropertyId(propertyId))
                 .and(LeaseSpecification.hasStatus(status))
@@ -218,13 +219,11 @@ public class LeaseServiceImpl implements LeaseService {
         return listResponse;
     }
 
-    // ============================================================
-    // SAGA
-    // ============================================================
-
     @Override
     @Transactional
     public void handleSagaReply(SagaReplyEvent reply) {
+        // Saga events are internal (Kafka/queue), not HTTP — no TenantContext.
+        // The lease's own org_id is the source of truth.
         Lease lease = leaseRepository.findById(reply.getLeaseId())
                 .orElseThrow(() -> new LeaseNotFoundException("Lease not found with id: " + reply.getLeaseId()));
 
@@ -237,8 +236,6 @@ public class LeaseServiceImpl implements LeaseService {
                 leaseRepository.save(lease);
                 leaseEventProducer.publishLeaseCreationFailed(leaseMapper.toResponse(lease), reply.getMessage());
             }
-        } else if ("TENANT_VALIDATION".equals(lease.getStatus() == null ? "" : "TENANT_VALIDATION")) {
-            // (placeholder — see original handler logic)
         }
     }
 }

@@ -3,25 +3,21 @@ package com.apex.module.lease.config;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
-import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.web.SecurityFilterChain;
 
 @Configuration
-@EnableWebSecurity
 public class SecurityConfig {
 
     @Bean
-    public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
+    SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
         http
             .csrf(csrf -> csrf.disable())
+            .sessionManagement(s -> s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
             .authorizeHttpRequests(auth -> auth
-                .requestMatchers("/actuator/**", "/api/v1/internal/**").permitAll()
-                .requestMatchers("/api/v1/leases/**").authenticated()
-                .anyRequest().authenticated()
-            )
-            .sessionManagement(sess -> sess.sessionCreationPolicy(SessionCreationPolicy.STATELESS));
-
+                .requestMatchers("/actuator/**").permitAll()
+                .anyRequest().permitAll()      // gateway handles auth; this service trusts X-Org-Id
+            );
         return http.build();
     }
 }

@@ -1,6 +1,5 @@
 package com.apex.module.lease.entity;
 
-
 import jakarta.persistence.*;
 
 import org.hibernate.annotations.CreationTimestamp;
@@ -20,6 +19,9 @@ public class Lease {
     @GeneratedValue(strategy = GenerationType.UUID)
     @Column(columnDefinition = "UUID", updatable = false, nullable = false)
     private UUID id;
+
+    @Column(name = "org_id", columnDefinition = "UUID", nullable = false, updatable = false)
+    private UUID orgId;
 
     @Column(columnDefinition = "UUID", nullable = false)
     private UUID propertyId;
@@ -51,12 +53,13 @@ public class Lease {
     // Constructors
     public Lease() {}
 
-    public Lease(UUID id, UUID propertyId, UUID tenantId, UUID landlordId,
+    public Lease(UUID id, UUID orgId, UUID propertyId, UUID tenantId, UUID landlordId,
                  LocalDate startDate, LocalDate endDate,
                  BigDecimal rentAmount, BigDecimal depositAmount,
                  LeaseStatus status, String termsAndConditions,
                  LocalDateTime createdAt, LocalDateTime updatedAt) {
         this.id = id;
+        this.orgId = orgId;
         this.propertyId = propertyId;
         this.tenantId = tenantId;
         this.landlordId = landlordId;
@@ -70,9 +73,18 @@ public class Lease {
         this.updatedAt = updatedAt;
     }
 
+    @PrePersist
+    void guardOrg() {
+        if (orgId == null) {
+            throw new IllegalStateException("org_id is required — set TenantContext before saving");
+        }
+    }
+
     // Getters and setters
     public UUID getId() { return id; }
     public void setId(UUID id) { this.id = id; }
+    public UUID getOrgId() { return orgId; }
+    public void setOrgId(UUID orgId) { this.orgId = orgId; }
     public UUID getPropertyId() { return propertyId; }
     public void setPropertyId(UUID propertyId) { this.propertyId = propertyId; }
     public UUID getTenantId() { return tenantId; }

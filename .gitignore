@@ -153,3 +153,22 @@ event2.json
 
 scripts/_baseline/
 
+
+
+
+# Local dev config — contains secrets, never commit
+
+**/application-local.yml
+
+**/application-local.yaml
+
+
+
+# Scratch / debug folders
+
+tenant-slice/
+
+tenant-collection/
+
+*.log
+

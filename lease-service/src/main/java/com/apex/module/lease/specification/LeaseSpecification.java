@@ -9,29 +9,36 @@ import java.util.UUID;
 
 
 public class LeaseSpecification {
-	
-	 public static Specification<Lease> hasTenantId(UUID tenantId) {
-	        return (root, query, cb) -> tenantId == null ? cb.conjunction() : cb.equal(root.get("tenantId"), tenantId);
-	    }
 
-	    public static Specification<Lease> hasLandlordId(UUID landlordId) {
-	        return (root, query, cb) -> landlordId == null ? cb.conjunction() : cb.equal(root.get("landlordId"), landlordId);
-	    }
+    /**
+     * MANDATORY org scope. No null check — org is required.
+     * If orgId is null, that is a bug and the query should fail loudly.
+     */
+    public static Specification<Lease> hasOrgId(UUID orgId) {
+        return (root, query, cb) -> cb.equal(root.get("orgId"), orgId);
+    }
 
-	    public static Specification<Lease> hasPropertyId(UUID propertyId) {
-	        return (root, query, cb) -> propertyId == null ? cb.conjunction() : cb.equal(root.get("propertyId"), propertyId);
-	    }
+    public static Specification<Lease> hasTenantId(UUID tenantId) {
+        return (root, query, cb) -> tenantId == null ? cb.conjunction() : cb.equal(root.get("tenantId"), tenantId);
+    }
 
-	    public static Specification<Lease> hasStatus(LeaseStatus status) {
-	        return (root, query, cb) -> status == null ? cb.conjunction() : cb.equal(root.get("status"), status);
-	    }
+    public static Specification<Lease> hasLandlordId(UUID landlordId) {
+        return (root, query, cb) -> landlordId == null ? cb.conjunction() : cb.equal(root.get("landlordId"), landlordId);
+    }
 
-	    public static Specification<Lease> hasStartDateAfterOrEqual(LocalDate startDate) {
-	        return (root, query, cb) -> startDate == null ? cb.conjunction() : cb.greaterThanOrEqualTo(root.get("startDate"), startDate);
-	    }
+    public static Specification<Lease> hasPropertyId(UUID propertyId) {
+        return (root, query, cb) -> propertyId == null ? cb.conjunction() : cb.equal(root.get("propertyId"), propertyId);
+    }
 
-	    public static Specification<Lease> hasEndDateBeforeOrEqual(LocalDate endDate) {
-	        return (root, query, cb) -> endDate == null ? cb.conjunction() : cb.lessThanOrEqualTo(root.get("endDate"), endDate);
-	    }
+    public static Specification<Lease> hasStatus(LeaseStatus status) {
+        return (root, query, cb) -> status == null ? cb.conjunction() : cb.equal(root.get("status"), status);
+    }
 
+    public static Specification<Lease> hasStartDateAfterOrEqual(LocalDate startDate) {
+        return (root, query, cb) -> startDate == null ? cb.conjunction() : cb.greaterThanOrEqualTo(root.get("startDate"), startDate);
+    }
+
+    public static Specification<Lease> hasEndDateBeforeOrEqual(LocalDate endDate) {
+        return (root, query, cb) -> endDate == null ? cb.conjunction() : cb.lessThanOrEqualTo(root.get("endDate"), endDate);
+    }
 }

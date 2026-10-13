@@ -42,6 +42,9 @@ public class User implements UserDetails {
     @Column(nullable = false)
     private Role role;
 
+    @Column(name = "org_id", columnDefinition = "UUID", nullable = false, updatable = false)
+    private UUID orgId;
+
     @Column(nullable = false)
     private boolean enabled = true;
 
@@ -55,9 +58,12 @@ public class User implements UserDetails {
         if (publicId == null) {
             publicId = UUID.randomUUID();
         }
+        if (orgId == null) {
+            orgId = UUID.fromString("00000000-0000-0000-0000-000000000001");
+        }
         createdAt = Instant.now();
     }
-
+    
     @PreUpdate
     protected void onUpdate() {
         updatedAt = Instant.now();

@@ -4,10 +4,13 @@ import com.apex.PropertyManagementService.entity.enums.UnitStatus;
 import com.apex.PropertyManagementService.repository.PropertyRepository;
 import com.apex.PropertyManagementService.repository.UnitRepository;
 import com.platform.common.dtos.admin.PropertyStatsDto;
+import com.platform.common.tenant.TenantContext;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+
+import java.util.UUID;
 
 @Service
 @RequiredArgsConstructor
@@ -19,10 +22,12 @@ public class PropertyAdminService {
 
     @Transactional(readOnly = true)
     public PropertyStatsDto stats() {
-        long totalProperties = safe(propertyRepository::count);
-        long totalUnits = safe(unitRepository::count);
-        long occupied = safe(() -> unitRepository.countByStatus(UnitStatus.OCCUPIED));
-        long vacant = safe(() -> unitRepository.countByStatus(UnitStatus.AVAILABLE));
+        UUID orgId = TenantContext.require();
+
+        long totalProperties = safe(() -> propertyRepository.findByOrgId(orgId).size());
+        long totalUnits = safe(() -> unitRepository.findByOrgId(orgId).size());
+        long occupied = safe(() -> unitRepository.countByOrgIdAndStatus(orgId, UnitStatus.OCCUPIED));
+        long vacant = safe(() -> unitRepository.countByOrgIdAndStatus(orgId, UnitStatus.AVAILABLE));
 
         double occupancyRate = totalUnits == 0
                 ? 0.0
@@ -30,7 +35,7 @@ public class PropertyAdminService {
 
         PropertyStatsDto dto = new PropertyStatsDto(
                 totalProperties, totalUnits, occupied, vacant, occupancyRate);
-        log.debug("Property stats: {}", dto);
+        log.debug("Property stats for org {}: {}", orgId, dto);
         return dto;
     }
 

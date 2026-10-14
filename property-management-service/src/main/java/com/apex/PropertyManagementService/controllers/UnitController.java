@@ -22,10 +22,9 @@ public class UnitController {
 
     @PostMapping
     public ResponseEntity<UnitResponse> createUnit(
-            @Valid @RequestBody UnitCreateRequest request,
-            @RequestHeader(value = "X-Tenant-ID", required = false) String tenantHeader) {
+            @Valid @RequestBody UnitCreateRequest request) {
         return ResponseEntity.status(HttpStatus.CREATED)
-                .body(unitService.createUnit(request, tenantHeader));
+                .body(unitService.createUnit(request, null));
     }
 
     @GetMapping
@@ -66,39 +65,32 @@ public class UnitController {
     @PutMapping("/{id}")
     public ResponseEntity<UnitResponse> updateUnit(
             @PathVariable UUID id,
-            @Valid @RequestBody UnitUpdateRequest request,
-            @RequestHeader(value = "X-Tenant-ID", required = false) String tenantHeader) {
-        return ResponseEntity.ok(unitService.updateUnit(id, request, tenantHeader));
+            @Valid @RequestBody UnitUpdateRequest request) {
+        return ResponseEntity.ok(unitService.updateUnit(id, request, null));
     }
 
     @PatchMapping("/{id}/status")
     public ResponseEntity<UnitResponse> updateUnitStatus(
             @PathVariable UUID id,
-            @RequestParam String status,
-            @RequestHeader(value = "X-Tenant-ID", required = false) String tenantHeader) {
-        return ResponseEntity.ok(unitService.updateUnitStatus(id, status, tenantHeader));
+            @RequestParam String status) {
+        return ResponseEntity.ok(unitService.updateUnitStatus(id, status, null));
     }
 
     @PatchMapping("/{id}/assign")
     public ResponseEntity<UnitResponse> assignTenant(
             @PathVariable UUID id,
-            @RequestParam UUID tenantId,
-            @RequestHeader(value = "X-Tenant-ID", required = false) String tenantHeader) {
-        return ResponseEntity.ok(unitService.assignTenant(id, tenantId, tenantHeader));
+            @RequestParam UUID tenantId) {
+        return ResponseEntity.ok(unitService.assignTenant(id, tenantId, null));
     }
 
     @PatchMapping("/{id}/vacate")
-    public ResponseEntity<UnitResponse> vacateUnit(
-            @PathVariable UUID id,
-            @RequestHeader(value = "X-Tenant-ID", required = false) String tenantHeader) {
-        return ResponseEntity.ok(unitService.vacateUnit(id, tenantHeader));
+    public ResponseEntity<UnitResponse> vacateUnit(@PathVariable UUID id) {
+        return ResponseEntity.ok(unitService.vacateUnit(id, null));
     }
 
     @DeleteMapping("/{id}")
-    public ResponseEntity<Void> deleteUnit(
-            @PathVariable UUID id,
-            @RequestHeader(value = "X-Tenant-ID", required = false) String tenantHeader) {
-        unitService.deleteUnit(id, tenantHeader);
+    public ResponseEntity<Void> deleteUnit(@PathVariable UUID id) {
+        unitService.deleteUnit(id, null);
         return ResponseEntity.noContent().build();
     }
 }

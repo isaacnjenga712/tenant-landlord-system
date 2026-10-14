@@ -14,6 +14,7 @@ import com.apex.PropertyManagementService.repository.LandlordRepository;
 import com.apex.PropertyManagementService.repository.PropertyRepository;
 import com.apex.PropertyManagementService.Service.PropertyService;
 import com.platform.common.events.property.PropertyRegisteredEvent;
+import com.platform.common.tenant.TenantContext;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -36,32 +37,24 @@ public class PropertyServiceImpl implements PropertyService {
     @Override
     @Transactional
     public PropertyResponse createProperty(PropertyCreateRequest request, String tenantHeader, String userHeader) {
+        UUID orgId = TenantContext.require();
+
         UUID propertyUuid = request.getPropertyId() != null
                 ? request.getPropertyId()
                 : UUID.randomUUID();
 
-        // Resolve landlord — prefer X-User-Id (gateway injects publicId), tolerate legacy values
-        Landlord landlord = resolveLandlord(userHeader, request.getLandlordId());
+        Landlord landlord = resolveLandlord(userHeader, request.getLandlordId(), orgId);
 
-        propertyRepository.findByPropertyId(propertyUuid)
+        propertyRepository.findByPropertyIdAndOrgId(propertyUuid, orgId)
                 .ifPresent(p -> { throw new IllegalArgumentException("Property ID already exists: " + propertyUuid); });
 
         Property property = mapper.toEntity(request);
         property.setPropertyId(propertyUuid);
         property.setLandlord(landlord);
         property.setStatus(PropertyStatus.AVAILABLE);
+        property.setOrgId(orgId);
 
         Property saved = propertyRepository.save(property);
-
-        // Tenant header may be "default" or any non-UUID string — parse defensively
-        UUID tenantUuid = null;
-        if (tenantHeader != null && !tenantHeader.isBlank()) {
-            try {
-                tenantUuid = UUID.fromString(tenantHeader);
-            } catch (IllegalArgumentException e) {
-                log.warn("Ignoring non-UUID X-Tenant-ID header: {}", tenantHeader);
-            }
-        }
 
         PropertyRegisteredEvent event = new PropertyRegisteredEvent(
                 saved.getPropertyId(),
@@ -74,27 +67,19 @@ public class PropertyServiceImpl implements PropertyService {
                 saved.getCountry(),
                 saved.getStatus().name(),
                 saved.getUnits() != null ? saved.getUnits().size() : 0,
-                UUID.randomUUID()
+                orgId
         );
-        eventPublisher.publishPropertyRegistered(event, tenantUuid);
+        eventPublisher.publishPropertyRegistered(event, orgId);
 
-        log.info("Property created: {} landlordId={}", saved.getId(),
+        log.info("Property created: {} orgId={} landlordId={}", saved.getId(), orgId,
                 landlord.getUserId() != null ? landlord.getUserId() : landlord.getId());
         return mapper.toResponse(saved);
     }
 
-    /**
-     * Resolve the landlord for a new property.
-     * Priority:
-     *   1. X-User-Id header (the authenticated user's publicId UUID) — find or create landlord
-     *   2. X-User-Id header as email — find or create by email
-     *   3. request.landlordId (legacy fallback) — look up by internal Landlord.id
-     */
-    private Landlord resolveLandlord(String userHeader, UUID fallbackLandlordId) {
+    private Landlord resolveLandlord(String userHeader, UUID fallbackLandlordId, UUID orgId) {
         if (userHeader != null && !userHeader.isBlank()) {
             String raw = userHeader.trim();
 
-            // Try UUID first
             UUID userPublicId = null;
             try {
                 userPublicId = UUID.fromString(raw);
@@ -104,39 +89,40 @@ public class PropertyServiceImpl implements PropertyService {
 
             if (userPublicId != null) {
                 final UUID lookupId = userPublicId;
-                return landlordRepository.findByUserId(lookupId)
+                return landlordRepository.findByUserIdAndOrgId(lookupId, orgId)
                         .orElseGet(() -> {
                             Landlord created = new Landlord();
+                            created.setOrgId(orgId);
                             created.setUserId(lookupId);
                             created.setEmail("landlord-" + lookupId.toString().substring(0, 8) + "@rentflow.local");
                             created.setFirstName("Landlord");
                             created.setLastName(lookupId.toString().substring(0, 8));
                             created.setCompanyName("RentFlow");
                             created.setStatus(LandlordStatus.ACTIVE);
-                            log.info("Auto-created Landlord for userId={}", lookupId);
+                            log.info("Auto-created Landlord for userId={} org={}", lookupId, orgId);
                             return landlordRepository.save(created);
                         });
             }
 
-            // Non-UUID → treat as email
             String email = raw;
-            return landlordRepository.findByEmail(email)
+            return landlordRepository.findByEmailAndOrgId(email, orgId)
                     .orElseGet(() -> {
                         Landlord created = new Landlord();
+                        created.setOrgId(orgId);
                         created.setUserId(UUID.randomUUID());
                         created.setEmail(email);
                         created.setFirstName("Landlord");
                         created.setLastName(email.contains("@") ? email.split("@")[0] : email);
                         created.setCompanyName("RentFlow");
                         created.setStatus(LandlordStatus.ACTIVE);
-                        log.info("Auto-created Landlord from email fallback: {}", email);
+                        log.info("Auto-created Landlord from email fallback: {} org={}", email, orgId);
                         return landlordRepository.save(created);
                     });
         }
 
         if (fallbackLandlordId != null) {
-            return landlordRepository.findByUserId(fallbackLandlordId)
-                    .or(() -> landlordRepository.findById(fallbackLandlordId))
+            return landlordRepository.findByIdAndOrgId(fallbackLandlordId, orgId)
+                    .or(() -> landlordRepository.findByUserIdAndOrgId(fallbackLandlordId, orgId))
                     .orElseThrow(() -> new ResourceNotFoundException(
                             "Landlord not found: " + fallbackLandlordId));
         }
@@ -147,7 +133,8 @@ public class PropertyServiceImpl implements PropertyService {
     @Override
     @Transactional(readOnly = true)
     public List<PropertyResponse> getAllProperties() {
-        return mapper.toResponseList(propertyRepository.findAll());
+        UUID orgId = TenantContext.require();
+        return mapper.toResponseList(propertyRepository.findByOrgId(orgId));
     }
 
     @Override
@@ -160,8 +147,9 @@ public class PropertyServiceImpl implements PropertyService {
     @Override
     @Transactional(readOnly = true)
     public PropertyResponse getPropertyByPropertyId(String propertyId) {
+        UUID orgId = TenantContext.require();
         UUID propertyUuid = UUID.fromString(propertyId);
-        Property property = propertyRepository.findByPropertyId(propertyUuid)
+        Property property = propertyRepository.findByPropertyIdAndOrgId(propertyUuid, orgId)
                 .orElseThrow(() -> new ResourceNotFoundException("Property not found with ID: " + propertyId));
         return mapper.toResponse(property);
     }
@@ -169,22 +157,24 @@ public class PropertyServiceImpl implements PropertyService {
     @Override
     @Transactional(readOnly = true)
     public List<PropertyResponse> getPropertiesByLandlord(UUID landlordId) {
-        Landlord landlord = landlordRepository.findByUserId(landlordId)
-                .orElseGet(() -> landlordRepository.findById(landlordId).orElse(null));
+        UUID orgId = TenantContext.require();
+        Landlord landlord = landlordRepository.findByUserIdAndOrgId(landlordId, orgId)
+                .or(() -> landlordRepository.findByIdAndOrgId(landlordId, orgId))
+                .orElse(null);
 
         if (landlord == null) {
             return List.of();
         }
-        List<Property> properties = propertyRepository.findByLandlordId(landlord.getId());
-        return mapper.toResponseList(properties);
+        return mapper.toResponseList(propertyRepository.findByOrgIdAndLandlordId(orgId, landlord.getId()));
     }
 
     @Override
     @Transactional(readOnly = true)
     public List<PropertyResponse> getPropertiesByStatus(String status) {
+        UUID orgId = TenantContext.require();
         try {
             PropertyStatus enumStatus = PropertyStatus.valueOf(status.toUpperCase());
-            return propertyRepository.findByStatus(enumStatus)
+            return propertyRepository.findByOrgIdAndStatus(orgId, enumStatus)
                     .stream().map(mapper::toResponse).collect(Collectors.toList());
         } catch (IllegalArgumentException e) {
             throw new IllegalArgumentException("Invalid status: " + status);
@@ -194,7 +184,8 @@ public class PropertyServiceImpl implements PropertyService {
     @Override
     @Transactional(readOnly = true)
     public List<PropertyResponse> getPropertiesByCity(String city) {
-        return propertyRepository.findByCity(city)
+        UUID orgId = TenantContext.require();
+        return propertyRepository.findByOrgIdAndCity(orgId, city)
                 .stream().map(mapper::toResponse).collect(Collectors.toList());
     }
 
@@ -241,7 +232,8 @@ public class PropertyServiceImpl implements PropertyService {
     }
 
     private Property findOrThrow(UUID id) {
-        return propertyRepository.findById(id)
+        UUID orgId = TenantContext.require();
+        return propertyRepository.findByIdAndOrgId(id, orgId)
                 .orElseThrow(() -> new ResourceNotFoundException("Property not found with id: " + id));
     }
 }

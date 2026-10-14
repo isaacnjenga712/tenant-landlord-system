@@ -21,6 +21,9 @@ public class Unit {
     @GeneratedValue(strategy = GenerationType.UUID)
     private UUID id;
 
+    @Column(name = "org_id", columnDefinition = "UUID", nullable = false, updatable = false)
+    private UUID orgId;
+
     @Column(unique = true, nullable = false)
     private String unitNumber;
 
@@ -37,14 +40,16 @@ public class Unit {
     @Enumerated(EnumType.STRING)
     private UnitStatus status;
 
-    private String currentTenantId;  // Reference to tenant (UUID as String)
+    private String currentTenantId;
 
-    // auditing fields
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
 
     @PrePersist
     protected void onCreate() {
+        if (orgId == null) {
+            throw new IllegalStateException("org_id is required — set TenantContext before saving");
+        }
         createdAt = LocalDateTime.now();
         updatedAt = LocalDateTime.now();
     }
@@ -54,5 +59,3 @@ public class Unit {
         updatedAt = LocalDateTime.now();
     }
 }
-			
-				

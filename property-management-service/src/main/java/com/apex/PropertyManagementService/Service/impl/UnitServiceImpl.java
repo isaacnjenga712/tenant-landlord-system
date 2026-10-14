@@ -11,6 +11,7 @@ import com.apex.PropertyManagementService.mapper.UnitMapper;
 import com.apex.PropertyManagementService.repository.PropertyRepository;
 import com.apex.PropertyManagementService.repository.UnitRepository;
 import com.apex.PropertyManagementService.Service.UnitService;
+import com.platform.common.tenant.TenantContext;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -32,36 +33,39 @@ public class UnitServiceImpl implements UnitService {
     @Override
     @Transactional
     public UnitResponse createUnit(UnitCreateRequest request, String tenantHeader) {
-        Property property = propertyRepository.findById(request.getPropertyId())
+        UUID orgId = TenantContext.require();
+
+        Property property = propertyRepository.findByIdAndOrgId(request.getPropertyId(), orgId)
                 .orElseThrow(() -> new ResourceNotFoundException("Property not found: " + request.getPropertyId()));
 
-        // Auto-generate unit number if the client didn't supply one
         String requestedNumber = request.getUnitNumber();
         final String unitNumber;
         if (requestedNumber == null || requestedNumber.isBlank()) {
-            long existing = unitRepository.findByPropertyId(property.getId()).size();
-            unitNumber = String.valueOf((char) ('A' + existing)); // A, B, C…
+            long existing = unitRepository.findByOrgIdAndPropertyId(orgId, property.getId()).size();
+            unitNumber = String.valueOf((char) ('A' + existing));
         } else {
             unitNumber = requestedNumber;
         }
 
-        unitRepository.findByUnitNumber(unitNumber)
+        unitRepository.findByOrgIdAndUnitNumber(orgId, unitNumber)
                 .ifPresent(u -> { throw new IllegalArgumentException("Unit number already exists: " + unitNumber); });
 
         Unit unit = mapper.toEntity(request);
+        unit.setOrgId(orgId);
         unit.setUnitNumber(unitNumber);
         unit.setProperty(property);
         unit.setStatus(UnitStatus.AVAILABLE);
 
         Unit saved = unitRepository.save(unit);
-        log.info("Unit created: {} number={}", saved.getId(), unitNumber);
+        log.info("Unit created: {} number={} org={}", saved.getId(), unitNumber, orgId);
         return mapper.toResponse(saved);
     }
 
     @Override
     @Transactional(readOnly = true)
     public List<UnitResponse> getAllUnits() {
-        return mapper.toResponseList(unitRepository.findAll());
+        UUID orgId = TenantContext.require();
+        return mapper.toResponseList(unitRepository.findByOrgId(orgId));
     }
 
     @Override
@@ -74,7 +78,8 @@ public class UnitServiceImpl implements UnitService {
     @Override
     @Transactional(readOnly = true)
     public UnitResponse getUnitByUnitNumber(String unitNumber) {
-        Unit unit = unitRepository.findByUnitNumber(unitNumber)
+        UUID orgId = TenantContext.require();
+        Unit unit = unitRepository.findByOrgIdAndUnitNumber(orgId, unitNumber)
                 .orElseThrow(() -> new ResourceNotFoundException("Unit not found: " + unitNumber));
         return mapper.toResponse(unit);
     }
@@ -82,18 +87,19 @@ public class UnitServiceImpl implements UnitService {
     @Override
     @Transactional(readOnly = true)
     public List<UnitResponse> getUnitsByProperty(UUID propertyId) {
-        propertyRepository.findById(propertyId)
+        UUID orgId = TenantContext.require();
+        propertyRepository.findByIdAndOrgId(propertyId, orgId)
                 .orElseThrow(() -> new ResourceNotFoundException("Property not found: " + propertyId));
-        List<Unit> units = unitRepository.findByPropertyId(propertyId);
-        return mapper.toResponseList(units);
+        return mapper.toResponseList(unitRepository.findByOrgIdAndPropertyId(orgId, propertyId));
     }
 
     @Override
     @Transactional(readOnly = true)
     public List<UnitResponse> getAvailableUnitsByProperty(UUID propertyId) {
-        propertyRepository.findById(propertyId)
+        UUID orgId = TenantContext.require();
+        propertyRepository.findByIdAndOrgId(propertyId, orgId)
                 .orElseThrow(() -> new ResourceNotFoundException("Property not found: " + propertyId));
-        List<Unit> units = unitRepository.findByPropertyId(propertyId)
+        List<Unit> units = unitRepository.findByOrgIdAndPropertyId(orgId, propertyId)
                 .stream().filter(u -> u.getStatus() == UnitStatus.AVAILABLE).collect(Collectors.toList());
         return mapper.toResponseList(units);
     }
@@ -101,9 +107,10 @@ public class UnitServiceImpl implements UnitService {
     @Override
     @Transactional(readOnly = true)
     public List<UnitResponse> getUnitsByStatus(String status) {
+        UUID orgId = TenantContext.require();
         try {
             UnitStatus enumStatus = UnitStatus.valueOf(status.toUpperCase());
-            return unitRepository.findByStatus(enumStatus)
+            return unitRepository.findByOrgIdAndStatus(orgId, enumStatus)
                     .stream().map(mapper::toResponse).collect(Collectors.toList());
         } catch (IllegalArgumentException e) {
             throw new IllegalArgumentException("Invalid status: " + status);
@@ -113,7 +120,8 @@ public class UnitServiceImpl implements UnitService {
     @Override
     @Transactional(readOnly = true)
     public List<UnitResponse> getUnitsByTenant(UUID tenantId) {
-        return unitRepository.findByCurrentTenantId(tenantId.toString())
+        UUID orgId = TenantContext.require();
+        return unitRepository.findByOrgIdAndCurrentTenantId(orgId, tenantId.toString())
                 .stream().map(mapper::toResponse).collect(Collectors.toList());
     }
 
@@ -188,7 +196,8 @@ public class UnitServiceImpl implements UnitService {
     }
 
     private Unit findOrThrow(UUID id) {
-        return unitRepository.findById(id)
+        UUID orgId = TenantContext.require();
+        return unitRepository.findByIdAndOrgId(id, orgId)
                 .orElseThrow(() -> new ResourceNotFoundException("Unit not found with id: " + id));
     }
 }

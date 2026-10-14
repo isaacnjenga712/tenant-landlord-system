@@ -10,15 +10,25 @@ import java.util.UUID;
 
 public interface UnitRepository extends JpaRepository<Unit, UUID> {
 
+    // ---- org-scoped lookups ----
+
+    Optional<Unit> findByIdAndOrgId(UUID id, UUID orgId);
+
+    List<Unit> findByOrgId(UUID orgId);
+
+    List<Unit> findByOrgIdAndPropertyId(UUID orgId, UUID propertyId);
+
+    Optional<Unit> findByOrgIdAndUnitNumber(UUID orgId, String unitNumber);
+
+    List<Unit> findByOrgIdAndStatus(UUID orgId, UnitStatus status);
+
+    List<Unit> findByOrgIdAndCurrentTenantId(UUID orgId, String tenantId);
+    
+    // ---- internal use only (Kafka consumers / saga) — NOT for HTTP requests ----
+
     List<Unit> findByPropertyId(UUID propertyId);
 
-    Optional<Unit> findByUnitNumber(String unitNumber);
+    // ---- org-scoped counts ----
 
-    List<Unit> findByStatus(UnitStatus status);
-
-    List<Unit> findByCurrentTenantId(String tenantId);
-
-    // ---------- KPI counts for admin dashboard ----------
-
-    long countByStatus(UnitStatus status);
+    long countByOrgIdAndStatus(UUID orgId, UnitStatus status);
 }

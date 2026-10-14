@@ -10,11 +10,23 @@ import java.util.UUID;
 
 public interface PropertyRepository extends JpaRepository<Property, UUID> {
 
+    // ---- org-scoped lookups ----
+
+    Optional<Property> findByIdAndOrgId(UUID id, UUID orgId);
+
+    Optional<Property> findByPropertyIdAndOrgId(UUID propertyId, UUID orgId);
+
+    List<Property> findByOrgId(UUID orgId);
+
+    List<Property> findByOrgIdAndLandlordId(UUID orgId, UUID landlordId);
+
+    List<Property> findByOrgIdAndStatus(UUID orgId, PropertyStatus status);
+
+    List<Property> findByOrgIdAndCity(UUID orgId, String city);
+    
     Optional<Property> findByPropertyId(UUID propertyId);
 
-    List<Property> findByLandlordId(UUID landlordId);
+    // ---- org-scoped counts ----
 
-    List<Property> findByStatus(PropertyStatus status);
-
-    List<Property> findByCity(String city);
+    long countByOrgIdAndStatus(UUID orgId, PropertyStatus status);
 }

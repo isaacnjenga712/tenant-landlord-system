@@ -23,10 +23,13 @@ public class Landlord {
     @GeneratedValue(strategy = GenerationType.UUID)
     private UUID id;
 
-    @Column(name = "user_id", unique = true)
+    @Column(name = "org_id", columnDefinition = "UUID", nullable = false, updatable = false)
+    private UUID orgId;
+
+    @Column(name = "user_id")
     private UUID userId;
 
-    @Column(unique = true, nullable = false)
+    @Column(nullable = false)
     private String email;
 
     @Column(nullable = false)
@@ -37,7 +40,6 @@ public class Landlord {
 
     private String phoneNumber;
 
-    
     @Column(name = "company_name", nullable = false)
     private String companyName;
 
@@ -45,7 +47,6 @@ public class Landlord {
     private String contactPerson;
 
     private String phone;
-    // -------------------------------------------------------------------
 
     @OneToMany(mappedBy = "landlord", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
     private List<Property> properties = new ArrayList<>();
@@ -53,12 +54,14 @@ public class Landlord {
     @Enumerated(EnumType.STRING)
     private LandlordStatus status;
 
-    
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
 
     @PrePersist
     protected void onCreate() {
+        if (orgId == null) {
+            throw new IllegalStateException("org_id is required — set TenantContext before saving");
+        }
         createdAt = LocalDateTime.now();
         updatedAt = LocalDateTime.now();
     }

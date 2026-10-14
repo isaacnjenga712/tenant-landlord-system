@@ -1,7 +1,6 @@
 package com.apex.PropertyManagementService.controllers;
 
 import com.apex.PropertyManagementService.DTOs.request.LandlordCreateRequest;
-
 import com.apex.PropertyManagementService.DTOs.request.LandlordUpdateRequest;
 import com.apex.PropertyManagementService.DTOs.response.LandlordResponse;
 import com.apex.PropertyManagementService.Service.LandlordService;

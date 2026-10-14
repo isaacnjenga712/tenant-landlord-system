@@ -10,11 +10,21 @@ import java.util.UUID;
 
 public interface LandlordRepository extends JpaRepository<Landlord, UUID> {
 
-    Optional<Landlord> findByEmail(String email);
+    // ---- org-scoped lookups ----
 
-    Optional<Landlord> findByUserId(UUID userId);   // ← ADD THIS
+    Optional<Landlord> findByIdAndOrgId(UUID id, UUID orgId);
 
-    List<Landlord> findByStatus(LandlordStatus status);
+    Optional<Landlord> findByEmailAndOrgId(String email, UUID orgId);
 
-    boolean existsByEmail(String email);
+    Optional<Landlord> findByUserIdAndOrgId(UUID userId, UUID orgId);
+
+    List<Landlord> findByOrgId(UUID orgId);
+
+    List<Landlord> findByOrgIdAndStatus(UUID orgId, LandlordStatus status);
+
+    boolean existsByEmailAndOrgId(String email, UUID orgId);
+
+    // ---- org-scoped counts ----
+
+    long countByOrgIdAndStatus(UUID orgId, LandlordStatus status);
 }

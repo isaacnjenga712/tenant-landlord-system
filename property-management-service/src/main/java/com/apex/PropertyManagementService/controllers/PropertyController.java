@@ -22,11 +22,9 @@ public class PropertyController {
 
     @PostMapping
     public ResponseEntity<PropertyResponse> createProperty(
-            @Valid @RequestBody PropertyCreateRequest request,
-            @RequestHeader(value = "X-Tenant-ID", required = false) String tenantHeader,
-            @RequestHeader(value = "X-User-Id", required = false) String userHeader) {
+            @Valid @RequestBody PropertyCreateRequest request) {
         return ResponseEntity.status(HttpStatus.CREATED)
-                .body(propertyService.createProperty(request, tenantHeader, userHeader));
+                .body(propertyService.createProperty(request, null, null));
     }
 
     @GetMapping
@@ -62,24 +60,20 @@ public class PropertyController {
     @PutMapping("/{id}")
     public ResponseEntity<PropertyResponse> updateProperty(
             @PathVariable UUID id,
-            @Valid @RequestBody PropertyUpdateRequest request,
-            @RequestHeader(value = "X-Tenant-ID", required = false) String tenantHeader) {
-        return ResponseEntity.ok(propertyService.updateProperty(id, request, tenantHeader));
+            @Valid @RequestBody PropertyUpdateRequest request) {
+        return ResponseEntity.ok(propertyService.updateProperty(id, request, null));
     }
 
     @PatchMapping("/{id}/status")
     public ResponseEntity<PropertyResponse> updatePropertyStatus(
             @PathVariable UUID id,
-            @RequestParam String status,
-            @RequestHeader(value = "X-Tenant-ID", required = false) String tenantHeader) {
-        return ResponseEntity.ok(propertyService.updatePropertyStatus(id, status, tenantHeader));
+            @RequestParam String status) {
+        return ResponseEntity.ok(propertyService.updatePropertyStatus(id, status, null));
     }
 
     @DeleteMapping("/{id}")
-    public ResponseEntity<Void> deleteProperty(
-            @PathVariable UUID id,
-            @RequestHeader(value = "X-Tenant-ID", required = false) String tenantHeader) {
-        propertyService.deleteProperty(id, tenantHeader);
+    public ResponseEntity<Void> deleteProperty(@PathVariable UUID id) {
+        propertyService.deleteProperty(id, null);
         return ResponseEntity.noContent().build();
     }
 }

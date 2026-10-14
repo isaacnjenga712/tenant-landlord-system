@@ -12,14 +12,27 @@ import java.util.UUID;
 
 public interface InvoiceRepository extends JpaRepository<Invoice, UUID> {
 
-    Optional<Invoice> findByInvoiceNumber(String invoiceNumber);
+    // ---- org-scoped lookups (HTTP path) ----
 
-    Page<Invoice> findByLeaseId(UUID leaseId, Pageable pageable);
+    Optional<Invoice> findByIdAndOrgId(UUID id, UUID orgId);
 
-    Page<Invoice> findByStatus(InvoiceStatus status, Pageable pageable);
+    boolean existsByIdAndOrgId(UUID id, UUID orgId);
 
-    Page<Invoice> findByLeaseIdAndStatus(UUID leaseId, InvoiceStatus status, Pageable pageable);
+    Optional<Invoice> findByInvoiceNumberAndOrgId(String invoiceNumber, UUID orgId);
 
-    /** Candidates for overdue sweep — anything not yet finalised. */
+    Page<Invoice> findByOrgId(UUID orgId, Pageable pageable);
+
+    Page<Invoice> findByOrgIdAndLeaseId(UUID orgId, UUID leaseId, Pageable pageable);
+
+    Page<Invoice> findByOrgIdAndStatus(UUID orgId, InvoiceStatus status, Pageable pageable);
+
+    Page<Invoice> findByOrgIdAndLeaseIdAndStatus(UUID orgId, UUID leaseId, InvoiceStatus status, Pageable pageable);
+
+    // ---- internal use only (scheduler, saga) ----
+
+    /** Candidates for the scheduled overdue sweep — spans all orgs. */
     List<Invoice> findByStatusIn(List<InvoiceStatus> statuses);
+
+    /** Un-scoped lookup for saga/cross-service flows that lack HTTP context. */
+    Optional<Invoice> findById(UUID id);
 }

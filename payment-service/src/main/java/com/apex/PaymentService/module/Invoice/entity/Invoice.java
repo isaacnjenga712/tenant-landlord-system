@@ -28,10 +28,13 @@ public class Invoice {
     @GeneratedValue(strategy = GenerationType.UUID)
     private UUID id;
 
+    @Column(name = "org_id", columnDefinition = "UUID", nullable = false, updatable = false)
+    private UUID orgId;
+
     @Column(name = "lease_id", nullable = false)
     private UUID leaseId;
 
-    @Column(name = "invoice_number", length = 50, nullable = false, unique = true)
+    @Column(name = "invoice_number", length = 50, nullable = false)
     private String invoiceNumber;
 
     @Column(name = "period_start", nullable = false)
@@ -62,7 +65,7 @@ public class Invoice {
     @JdbcTypeCode(SqlTypes.JSON)
     @Column(columnDefinition = "jsonb")
     private String metadata;
-    
+
     @CreationTimestamp
     @Column(name = "created_at", updatable = false)
     private LocalDateTime createdAt;
@@ -74,9 +77,13 @@ public class Invoice {
     @Version
     private Long version;
 
-    /**
-     * Updates the invoice status based on paid amount and due date.
-     */
+    @PrePersist
+    protected void guardOrg() {
+        if (orgId == null) {
+            throw new IllegalStateException("org_id is required — set TenantContext before saving");
+        }
+    }
+
     public void updateStatus() {
         if (this.paidAmount == null) this.paidAmount = BigDecimal.ZERO;
         if (this.totalAmount == null) this.totalAmount = BigDecimal.ZERO;
@@ -96,16 +103,6 @@ public class Invoice {
         }
     }
 
-    /**
-     * Applies a payment to this invoice.
-     * Validates that the invoice is not voided or already fully paid,
-     * and that the payment amount does not exceed the outstanding balance.
-     *
-     * @param amount the amount to apply (must be positive)
-     * @throws IllegalArgumentException if amount is null or <= 0
-     * @throws IllegalStateException if invoice is voided or already paid,
-     *         or if payment would exceed the remaining balance
-     */
     public void applyPayment(BigDecimal amount) {
         if (this.status == InvoiceStatus.voided) {
             throw new IllegalStateException("Cannot apply payment to a voided invoice");
@@ -126,16 +123,6 @@ public class Invoice {
         updateStatus();
     }
 
-    /**
-     * Reverses a previously applied payment (e.g., for a refund).
-     * Validates that the invoice is not voided and that the amount to reverse
-     * does not exceed the paid amount.
-     *
-     * @param amount the amount to reverse (must be positive)
-     * @throws IllegalArgumentException if amount is null or <= 0
-     * @throws IllegalStateException if invoice is voided,
-     *         or if the amount exceeds the paid amount
-     */
     public void reversePayment(BigDecimal amount) {
         if (this.status == InvoiceStatus.voided) {
             throw new IllegalStateException("Cannot reverse payment on a voided invoice");

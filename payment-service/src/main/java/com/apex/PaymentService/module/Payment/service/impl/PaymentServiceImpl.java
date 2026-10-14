@@ -8,11 +8,12 @@ import com.apex.PaymentService.module.Payment.dto.request.PaymentUpdateDto;
 import com.apex.PaymentService.module.Payment.dto.response.PaymentResponseDto;
 import com.apex.PaymentService.module.Payment.entity.Payment;
 import com.apex.PaymentService.module.Payment.enums.PaymentStatus;
-import com.apex.PaymentService.module.Payment.kafka.KafkaProducer;   // ✅ added
+import com.apex.PaymentService.module.Payment.kafka.KafkaProducer;
 import com.apex.PaymentService.module.Payment.mapper.PaymentMapper;
 import com.apex.PaymentService.module.Payment.repository.PaymentRepository;
 import com.apex.PaymentService.module.Payment.service.PaymentService;
 import com.apex.PaymentService.module.Tenant.service.TenantService;
+import com.platform.common.tenant.TenantContext;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
@@ -33,11 +34,13 @@ public class PaymentServiceImpl implements PaymentService {
     private final PaymentMapper mapper;
     private final InvoiceService invoiceService;
     private final TenantService tenantService;
-    private final KafkaProducer kafkaProducer;   // ✅ added
+    private final KafkaProducer kafkaProducer;
 
     @Override
     @Transactional
     public PaymentResponseDto createPayment(PaymentCreateDto dto) {
+        UUID orgId = TenantContext.require();
+
         if (!tenantService.exists(dto.getTenantId())) {
             throw new ResourceNotFoundException("Tenant not found with id: " + dto.getTenantId());
         }
@@ -47,15 +50,15 @@ public class PaymentServiceImpl implements PaymentService {
         }
 
         if (dto.getGatewayTransactionId() != null &&
-                repository.findByGatewayTransactionId(dto.getGatewayTransactionId()).isPresent()) {
+                repository.findByGatewayTransactionIdAndOrgId(dto.getGatewayTransactionId(), orgId).isPresent()) {
             throw new BusinessException("Duplicate gateway transaction ID");
         }
 
         Payment payment = mapper.toEntity(dto);
+        payment.setOrgId(orgId);
         Payment saved = repository.save(payment);
-        log.info("Created payment {} for tenant {}", saved.getId(), saved.getTenantId());
+        log.info("Created payment {} for tenant {} org {}", saved.getId(), saved.getTenantId(), orgId);
 
-        // ✅ publish event
         kafkaProducer.sendPaymentCreatedEvent(saved);
 
         return mapper.toResponseDto(saved);
@@ -64,7 +67,8 @@ public class PaymentServiceImpl implements PaymentService {
     @Override
     @Transactional(readOnly = true)
     public PaymentResponseDto getPayment(UUID id) {
-        Payment payment = repository.findById(id)
+        UUID orgId = TenantContext.require();
+        Payment payment = repository.findByIdAndOrgId(id, orgId)
                 .orElseThrow(() -> new ResourceNotFoundException("Payment not found"));
         return mapper.toResponseDto(payment);
     }
@@ -72,22 +76,25 @@ public class PaymentServiceImpl implements PaymentService {
     @Override
     @Transactional(readOnly = true)
     public Page<PaymentResponseDto> listPayments(UUID tenantId, UUID invoiceId, PaymentStatus status, Pageable pageable) {
+        UUID orgId = TenantContext.require();
+
         if (tenantId != null) {
-            return repository.findByTenantId(tenantId, pageable).map(mapper::toResponseDto);
+            return repository.findByOrgIdAndTenantId(orgId, tenantId, pageable).map(mapper::toResponseDto);
         }
         if (invoiceId != null) {
-            return repository.findByInvoiceId(invoiceId, pageable).map(mapper::toResponseDto);
+            return repository.findByOrgIdAndInvoiceId(orgId, invoiceId, pageable).map(mapper::toResponseDto);
         }
         if (status != null) {
-            return repository.findByStatus(status, pageable).map(mapper::toResponseDto);
+            return repository.findByOrgIdAndStatus(orgId, status, pageable).map(mapper::toResponseDto);
         }
-        return repository.findAll(pageable).map(mapper::toResponseDto);
+        return repository.findByOrgId(orgId, pageable).map(mapper::toResponseDto);
     }
 
     @Override
     @Transactional
     public PaymentResponseDto updatePayment(UUID id, PaymentUpdateDto dto) {
-        Payment payment = repository.findById(id)
+        UUID orgId = TenantContext.require();
+        Payment payment = repository.findByIdAndOrgId(id, orgId)
                 .orElseThrow(() -> new ResourceNotFoundException("Payment not found"));
 
         if (payment.getStatus() == PaymentStatus.refunded) {
@@ -107,7 +114,8 @@ public class PaymentServiceImpl implements PaymentService {
     @Override
     @Transactional
     public void deletePayment(UUID id) {
-        Payment payment = repository.findById(id)
+        UUID orgId = TenantContext.require();
+        Payment payment = repository.findByIdAndOrgId(id, orgId)
                 .orElseThrow(() -> new ResourceNotFoundException("Payment not found"));
         if (payment.getStatus() != PaymentStatus.initiated && payment.getStatus() != PaymentStatus.failed) {
             throw new BusinessException("Cannot delete payment with status: " + payment.getStatus());
@@ -119,7 +127,8 @@ public class PaymentServiceImpl implements PaymentService {
     @Override
     @Transactional(readOnly = true)
     public BigDecimal getPaymentAmount(UUID paymentId) {
-        Payment payment = repository.findById(paymentId)
+        UUID orgId = TenantContext.require();
+        Payment payment = repository.findByIdAndOrgId(paymentId, orgId)
                 .orElseThrow(() -> new ResourceNotFoundException("Payment not found"));
         return payment.getAmount();
     }
@@ -127,7 +136,8 @@ public class PaymentServiceImpl implements PaymentService {
     @Override
     @Transactional
     public PaymentResponseDto processPayment(UUID id, PaymentStatus newStatus, String gatewayResponse) {
-        Payment payment = repository.findById(id)
+        UUID orgId = TenantContext.require();
+        Payment payment = repository.findByIdAndOrgId(id, orgId)
                 .orElseThrow(() -> new ResourceNotFoundException("Payment not found"));
 
         if (payment.getStatus() == PaymentStatus.refunded) {
@@ -148,7 +158,6 @@ public class PaymentServiceImpl implements PaymentService {
         Payment updated = repository.save(payment);
         log.info("Processed payment {} with status {}", updated.getId(), newStatus);
 
-        // ✅ publish event if successful
         if (newStatus == PaymentStatus.success) {
             kafkaProducer.sendPaymentProcessedEvent(updated);
         }
@@ -159,7 +168,8 @@ public class PaymentServiceImpl implements PaymentService {
     @Override
     @Transactional
     public PaymentResponseDto refundPayment(UUID id) {
-        Payment payment = repository.findById(id)
+        UUID orgId = TenantContext.require();
+        Payment payment = repository.findByIdAndOrgId(id, orgId)
                 .orElseThrow(() -> new ResourceNotFoundException("Payment not found"));
 
         if (payment.getStatus() != PaymentStatus.success) {
@@ -172,7 +182,6 @@ public class PaymentServiceImpl implements PaymentService {
         Payment updated = repository.save(payment);
         log.info("Refunded payment {}", updated.getId());
 
-        // ✅ publish event
         kafkaProducer.sendPaymentRefundedEvent(updated);
 
         return mapper.toResponseDto(updated);
@@ -181,7 +190,8 @@ public class PaymentServiceImpl implements PaymentService {
     @Override
     @Transactional
     public void applyPaymentToInvoice(UUID paymentId) {
-        Payment payment = repository.findById(paymentId)
+        UUID orgId = TenantContext.require();
+        Payment payment = repository.findByIdAndOrgId(paymentId, orgId)
                 .orElseThrow(() -> new ResourceNotFoundException("Payment not found"));
         if (payment.getStatus() != PaymentStatus.success) {
             throw new BusinessException("Cannot apply non-successful payment");

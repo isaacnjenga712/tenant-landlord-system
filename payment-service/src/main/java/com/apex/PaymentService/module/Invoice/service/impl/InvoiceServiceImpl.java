@@ -12,6 +12,7 @@ import com.apex.PaymentService.module.Invoice.producer.InvoiceEventProducer;
 import com.apex.PaymentService.module.Invoice.repository.InvoiceRepository;
 import com.apex.PaymentService.module.Invoice.service.InvoiceService;
 import com.apex.PaymentService.module.Invoice.service.external.LeaseValidationService;
+import com.platform.common.tenant.TenantContext;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.OptimisticLockingFailureException;
@@ -24,8 +25,8 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
-import java.util.UUID;
 import java.util.List;
+import java.util.UUID;
 
 @Service
 @RequiredArgsConstructor
@@ -42,22 +43,24 @@ public class InvoiceServiceImpl implements InvoiceService {
     @Override
     @Transactional
     public InvoiceResponseDto createInvoice(InvoiceCreateDto dto) {
+        UUID orgId = TenantContext.require();
+
         if (!leaseValidationService.exists(dto.getLeaseId())) {
             throw new ResourceNotFoundException("Lease not found with id: " + dto.getLeaseId());
         }
-        if (repository.findByInvoiceNumber(dto.getInvoiceNumber()).isPresent()) {
+        if (repository.findByInvoiceNumberAndOrgId(dto.getInvoiceNumber(), orgId).isPresent()) {
             throw new BusinessException("Invoice number already exists: " + dto.getInvoiceNumber());
         }
 
         Invoice invoice = mapper.toEntity(dto);
+        invoice.setOrgId(orgId);
         invoice.setPaidAmount(dto.getPaidAmount() != null ? dto.getPaidAmount() : BigDecimal.ZERO);
         invoice.updateStatus();
         Invoice saved = repository.save(invoice);
-        log.info("Created invoice: {} for lease: {}", saved.getInvoiceNumber(), saved.getLeaseId());
+        log.info("Created invoice: {} for lease: {} org: {}", saved.getInvoiceNumber(), saved.getLeaseId(), orgId);
 
         InvoiceResponseDto response = mapper.toResponseDto(saved);
 
-        // Publish event — resolve tenant + landlord from lease-service (fail-soft)
         try {
             LeaseValidationService.LeaseInfo info = leaseValidationService.getLease(dto.getLeaseId());
             invoiceEventProducer.publishInvoiceCreated(response, info.tenantId(), info.landlordId());
@@ -72,7 +75,8 @@ public class InvoiceServiceImpl implements InvoiceService {
     @Override
     @Transactional(readOnly = true)
     public InvoiceResponseDto getInvoice(UUID id) {
-        Invoice invoice = repository.findById(id)
+        UUID orgId = TenantContext.require();
+        Invoice invoice = repository.findByIdAndOrgId(id, orgId)
                 .orElseThrow(() -> new ResourceNotFoundException("Invoice not found"));
         return mapper.toResponseDto(invoice);
     }
@@ -80,7 +84,8 @@ public class InvoiceServiceImpl implements InvoiceService {
     @Override
     @Transactional(readOnly = true)
     public InvoiceResponseDto getInvoiceByNumber(String invoiceNumber) {
-        Invoice invoice = repository.findByInvoiceNumber(invoiceNumber)
+        UUID orgId = TenantContext.require();
+        Invoice invoice = repository.findByInvoiceNumberAndOrgId(invoiceNumber, orgId)
                 .orElseThrow(() -> new ResourceNotFoundException("Invoice not found with number: " + invoiceNumber));
         return mapper.toResponseDto(invoice);
     }
@@ -88,24 +93,27 @@ public class InvoiceServiceImpl implements InvoiceService {
     @Override
     @Transactional(readOnly = true)
     public Page<InvoiceResponseDto> listInvoices(UUID leaseId, InvoiceStatus status, Pageable pageable) {
+        UUID orgId = TenantContext.require();
+
         if (leaseId != null && status != null) {
-            return repository.findByLeaseIdAndStatus(leaseId, status, pageable)
+            return repository.findByOrgIdAndLeaseIdAndStatus(orgId, leaseId, status, pageable)
                     .map(mapper::toResponseDto);
         } else if (leaseId != null) {
-            return repository.findByLeaseId(leaseId, pageable)
+            return repository.findByOrgIdAndLeaseId(orgId, leaseId, pageable)
                     .map(mapper::toResponseDto);
         } else if (status != null) {
-            return repository.findByStatus(status, pageable)
+            return repository.findByOrgIdAndStatus(orgId, status, pageable)
                     .map(mapper::toResponseDto);
         } else {
-            return repository.findAll(pageable).map(mapper::toResponseDto);
+            return repository.findByOrgId(orgId, pageable).map(mapper::toResponseDto);
         }
     }
 
     @Override
     @Transactional
     public InvoiceResponseDto updateInvoice(UUID id, InvoiceUpdateDto dto) {
-        Invoice invoice = repository.findById(id)
+        UUID orgId = TenantContext.require();
+        Invoice invoice = repository.findByIdAndOrgId(id, orgId)
                 .orElseThrow(() -> new ResourceNotFoundException("Invoice not found"));
 
         if (invoice.getStatus() == InvoiceStatus.voided || invoice.getStatus() == InvoiceStatus.paid) {
@@ -140,7 +148,8 @@ public class InvoiceServiceImpl implements InvoiceService {
     @Override
     @Transactional
     public void voidInvoice(UUID id) {
-        Invoice invoice = repository.findById(id)
+        UUID orgId = TenantContext.require();
+        Invoice invoice = repository.findByIdAndOrgId(id, orgId)
                 .orElseThrow(() -> new ResourceNotFoundException("Invoice not found"));
         if (invoice.getStatus() == InvoiceStatus.paid) {
             throw new BusinessException("Cannot void a paid invoice");
@@ -155,6 +164,11 @@ public class InvoiceServiceImpl implements InvoiceService {
     @Override
     @Transactional(readOnly = true)
     public boolean exists(UUID invoiceId) {
+        UUID orgId = TenantContext.get();
+        // If invoked from an HTTP flow, enforce org. Otherwise (saga/cross-module) allow un-scoped.
+        if (orgId != null) {
+            return repository.existsByIdAndOrgId(invoiceId, orgId);
+        }
         return repository.existsById(invoiceId);
     }
 
@@ -162,7 +176,8 @@ public class InvoiceServiceImpl implements InvoiceService {
     @Transactional
     @Retryable(value = OptimisticLockingFailureException.class, maxAttempts = 3, backoff = @Backoff(delay = 100))
     public void applyPayment(UUID invoiceId, BigDecimal amount) {
-        Invoice invoice = repository.findById(invoiceId)
+        UUID orgId = TenantContext.require();
+        Invoice invoice = repository.findByIdAndOrgId(invoiceId, orgId)
                 .orElseThrow(() -> new ResourceNotFoundException("Invoice not found: " + invoiceId));
         invoice.applyPayment(amount);
         repository.save(invoice);
@@ -173,7 +188,8 @@ public class InvoiceServiceImpl implements InvoiceService {
     @Transactional
     @Retryable(value = OptimisticLockingFailureException.class, maxAttempts = 3, backoff = @Backoff(delay = 100))
     public void reversePayment(UUID invoiceId, BigDecimal amount) {
-        Invoice invoice = repository.findById(invoiceId)
+        UUID orgId = TenantContext.require();
+        Invoice invoice = repository.findByIdAndOrgId(invoiceId, orgId)
                 .orElseThrow(() -> new ResourceNotFoundException("Invoice not found: " + invoiceId));
         invoice.reversePayment(amount);
         repository.save(invoice);
@@ -192,7 +208,8 @@ public class InvoiceServiceImpl implements InvoiceService {
     @Override
     @Transactional
     public void applyLateFee(UUID id, BigDecimal feeAmount) {
-        Invoice invoice = repository.findById(id)
+        UUID orgId = TenantContext.require();
+        Invoice invoice = repository.findByIdAndOrgId(id, orgId)
                 .orElseThrow(() -> new ResourceNotFoundException("Invoice not found"));
         if (invoice.getStatus() == InvoiceStatus.paid || invoice.getStatus() == InvoiceStatus.voided) {
             throw new BusinessException("Cannot add late fee to " + invoice.getStatus() + " invoice");
@@ -210,6 +227,7 @@ public class InvoiceServiceImpl implements InvoiceService {
     @Override
     @Transactional
     public void markOverdueInvoices() {
+        // Scheduled system job — no TenantContext, spans all orgs by design.
         LocalDate today = LocalDate.now();
         List<Invoice> candidates = repository.findByStatusIn(
                 List.of(InvoiceStatus.pending, InvoiceStatus.partial));

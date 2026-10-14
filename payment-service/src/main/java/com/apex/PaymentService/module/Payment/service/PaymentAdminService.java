@@ -6,6 +6,7 @@ import com.apex.PaymentService.module.Payment.repository.PaymentRepository;
 import com.platform.common.dtos.PageResponse;
 import com.platform.common.dtos.admin.AdminPaymentDto;
 import com.platform.common.dtos.admin.PaymentSummaryDto;
+import com.platform.common.tenant.TenantContext;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
@@ -17,6 +18,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.time.ZoneOffset;
+import java.util.UUID;
 import java.util.function.LongSupplier;
 
 @Service
@@ -26,32 +28,31 @@ public class PaymentAdminService {
 
     private final PaymentRepository paymentRepository;
 
-    // ---------- Summary KPI (existing) ----------
-
     @Transactional(readOnly = true)
     public PaymentSummaryDto summary() {
-        BigDecimal collected = safeSum(PaymentStatus.success);
-        BigDecimal pending = safeSum(PaymentStatus.initiated);
-        BigDecimal failed = safeSum(PaymentStatus.failed);
+        UUID orgId = TenantContext.require();
 
-        long total = safeCount(paymentRepository::count);
-        long failedCount = safeCount(() -> paymentRepository.countByStatus(PaymentStatus.failed));
+        BigDecimal collected = safeSum(() -> paymentRepository.sumAmountByOrgIdAndStatus(orgId, PaymentStatus.success));
+        BigDecimal pending = safeSum(() -> paymentRepository.sumAmountByOrgIdAndStatus(orgId, PaymentStatus.initiated));
+        BigDecimal failed = safeSum(() -> paymentRepository.sumAmountByOrgIdAndStatus(orgId, PaymentStatus.failed));
+
+        long total = safeCount(() -> paymentRepository.countByOrgId(orgId));
+        long failedCount = safeCount(() -> paymentRepository.countByOrgIdAndStatus(orgId, PaymentStatus.failed));
 
         PaymentSummaryDto dto = new PaymentSummaryDto(
                 collected, pending, failed, total, failedCount);
-        log.debug("Payment summary: {}", dto);
+        log.debug("Payment summary for org {}: {}", orgId, dto);
         return dto;
     }
-
-    // ---------- Paginated list for admin ----------
 
     @Transactional(readOnly = true)
     public PageResponse<AdminPaymentDto> list(int page, int size,
                                               String status, String method) {
+        UUID orgId = TenantContext.require();
         Pageable pageable = PageRequest.of(page, size,
                 Sort.by(Sort.Direction.DESC, "createdAt"));
 
-        Page<Payment> result = paymentRepository.findAll(pageable);
+        Page<Payment> result = paymentRepository.findByOrgId(orgId, pageable);
 
         return new PageResponse<>(
                 result.getContent().stream().map(this::toDto).toList(),
@@ -81,14 +82,12 @@ public class PaymentAdminService {
         );
     }
 
-    // ---------- Helpers ----------
-
-    private BigDecimal safeSum(PaymentStatus status) {
+    private BigDecimal safeSum(java.util.function.Supplier<BigDecimal> s) {
         try {
-            BigDecimal v = paymentRepository.sumAmountByStatus(status);
+            BigDecimal v = s.get();
             return v != null ? v : BigDecimal.ZERO;
         } catch (Exception e) {
-            log.warn("Payment sum query failed for {}: {}", status, e.getMessage());
+            log.warn("Payment sum query failed: {}", e.getMessage());
             return BigDecimal.ZERO;
         }
     }

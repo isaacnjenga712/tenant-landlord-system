@@ -28,6 +28,9 @@ public class Payment {
     @GeneratedValue(strategy = GenerationType.UUID)
     private UUID id;
 
+    @Column(name = "org_id", columnDefinition = "UUID", nullable = false, updatable = false)
+    private UUID orgId;
+
     @Column(name = "invoice_id")
     private UUID invoiceId;
 
@@ -66,13 +69,15 @@ public class Payment {
     @Column(name = "updated_at")
     private LocalDateTime updatedAt;
 
+    @PrePersist
+    protected void guardOrg() {
+        if (orgId == null) {
+            throw new IllegalStateException("org_id is required — set TenantContext before saving");
+        }
+    }
+
     // ---------- Business Logic Methods ----------
 
-    /**
-     * Marks the payment as successful.
-     * Validates that the payment is in a state that can be marked successful
-     * (i.e., not already success, refunded, or failed permanently).
-     */
     public void markSuccess() {
         if (this.status == PaymentStatus.success) {
             throw new IllegalStateException("Payment is already successful");
@@ -87,10 +92,6 @@ public class Payment {
         this.processedAt = LocalDateTime.now();
     }
 
-    /**
-     * Marks the payment as failed.
-     * Accepts an optional error response to store in the gateway_response field.
-     */
     public void markFailed(String errorResponse) {
         if (this.status == PaymentStatus.success) {
             throw new IllegalStateException("Cannot mark a successful payment as failed");
@@ -103,10 +104,6 @@ public class Payment {
         this.gatewayResponse = errorResponse;
     }
 
-    /**
-     * Marks the payment as refunded.
-     * Only a successful payment can be refunded.
-     */
     public void markRefunded() {
         if (this.status != PaymentStatus.success) {
             throw new IllegalStateException("Only successful payments can be refunded");
@@ -115,10 +112,6 @@ public class Payment {
         this.processedAt = LocalDateTime.now();
     }
 
-    /**
-     * Applies the payment to its linked invoice.
-     * Validates that the payment is in 'success' status and not already applied.
-     */
     public void applyToInvoice() {
         if (this.status != PaymentStatus.success) {
             throw new IllegalStateException("Only successful payments can be applied to an invoice");
@@ -129,23 +122,14 @@ public class Payment {
         this.appliedToInvoice = true;
     }
 
-    /**
-     * Checks if the payment is in a state that allows update (e.g., not refunded).
-     */
     public boolean isUpdatable() {
         return this.status != PaymentStatus.refunded;
     }
 
-    /**
-     * Checks if the payment can be deleted (only initiated or failed status).
-     */
     public boolean isDeletable() {
         return this.status == PaymentStatus.initiated || this.status == PaymentStatus.failed;
     }
 
-    /**
-     * Checks if the payment is already applied to an invoice.
-     */
     public boolean isAppliedToInvoice() {
         return Boolean.TRUE.equals(this.appliedToInvoice);
     }

@@ -24,6 +24,9 @@ public class DepositDeduction {
     @GeneratedValue(strategy = GenerationType.UUID)
     private UUID id;
 
+    @Column(name = "org_id", columnDefinition = "UUID", nullable = false, updatable = false)
+    private UUID orgId;
+
     @Column(name = "deposit_id", nullable = false)
     private UUID depositId;
 
@@ -46,4 +49,11 @@ public class DepositDeduction {
     @UpdateTimestamp
     @Column(name = "updated_at")
     private LocalDateTime updatedAt;
+
+    @PrePersist
+    protected void guardOrg() {
+        if (orgId == null) {
+            throw new IllegalStateException("org_id is required — set TenantContext before saving");
+        }
+    }
 }

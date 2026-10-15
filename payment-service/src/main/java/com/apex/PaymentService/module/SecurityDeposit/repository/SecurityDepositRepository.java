@@ -4,17 +4,23 @@ import com.apex.PaymentService.module.SecurityDeposit.entity.SecurityDeposit;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+
 import java.util.Optional;
 import java.util.UUID;
 
 public interface SecurityDepositRepository extends JpaRepository<SecurityDeposit, UUID> {
 
-    // Non‑paginated version (for uniqueness check)
-    Optional<SecurityDeposit> findByLeaseId(UUID leaseId);
+    // ---- org-scoped lookups (HTTP path) ----
 
-    // Paginated version (for listing)
-    Page<SecurityDeposit> findByLeaseId(UUID leaseId, Pageable pageable);
+    Optional<SecurityDeposit> findByIdAndOrgId(UUID id, UUID orgId);
 
-    // Filter only active deposits (returnedDate is null)
-    Page<SecurityDeposit> findByReturnedDateIsNull(Pageable pageable);
+    boolean existsByIdAndOrgId(UUID id, UUID orgId);
+
+    Optional<SecurityDeposit> findByOrgIdAndLeaseId(UUID orgId, UUID leaseId);
+
+    Page<SecurityDeposit> findByOrgIdAndLeaseId(UUID orgId, UUID leaseId, Pageable pageable);
+
+    Page<SecurityDeposit> findByOrgId(UUID orgId, Pageable pageable);
+
+    Page<SecurityDeposit> findByOrgIdAndReturnedDateIsNull(UUID orgId, Pageable pageable);
 }

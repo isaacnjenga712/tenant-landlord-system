@@ -9,6 +9,7 @@ import com.apex.PaymentService.module.AuditLog.repository.AuditLogRepository;
 import com.apex.PaymentService.module.AuditLog.service.AuditLogService;
 import com.apex.PaymentService.module.AuditLog.spec.AuditLogSpecifications;
 import com.apex.PaymentService.module.PaymentAccount.entity.PaymentAccount;
+import com.platform.common.tenant.TenantContext;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
@@ -32,6 +33,7 @@ public class AuditLogServiceImpl implements AuditLogService {
     @Override
     public void logCreate(PaymentAccount account) {
         AuditLog logEntry = AuditLog.builder()
+                .orgId(account.getOrgId())
                 .accountId(account.getId())
                 .actionType(ActionType.CREATE)
                 .afterTrustBalance(account.getTrustBalance())
@@ -46,6 +48,7 @@ public class AuditLogServiceImpl implements AuditLogService {
     @Override
     public void logUpdate(PaymentAccount account, PaymentAccount oldState) {
         AuditLog logEntry = AuditLog.builder()
+                .orgId(account.getOrgId())
                 .accountId(account.getId())
                 .actionType(ActionType.UPDATE)
                 .beforeTrustBalance(oldState.getTrustBalance())
@@ -65,6 +68,7 @@ public class AuditLogServiceImpl implements AuditLogService {
     @Override
     public void logDelete(PaymentAccount account) {
         AuditLog logEntry = AuditLog.builder()
+                .orgId(account.getOrgId())
                 .accountId(account.getId())
                 .actionType(ActionType.DELETE)
                 .beforeTrustBalance(account.getTrustBalance())
@@ -80,7 +84,6 @@ public class AuditLogServiceImpl implements AuditLogService {
     @Async
     @Override
     public void logAdjustment(PaymentAccount account, BigDecimal delta, String target, String reason) {
-        // Compute before values: before = after - delta
         BigDecimal beforeTrust = account.getTrustBalance();
         BigDecimal beforeOp = account.getOperationalBalance();
         if ("trust".equalsIgnoreCase(target)) {
@@ -90,6 +93,7 @@ public class AuditLogServiceImpl implements AuditLogService {
         }
 
         AuditLog logEntry = AuditLog.builder()
+                .orgId(account.getOrgId())
                 .accountId(account.getId())
                 .actionType(ActionType.ADJUST)
                 .amountDelta(delta)
@@ -107,17 +111,17 @@ public class AuditLogServiceImpl implements AuditLogService {
     @Async
     @Override
     public void logTransfer(PaymentAccount account, BigDecimal amount, String from, String to, String reason) {
-        // Calculate before values based on transfer direction
         BigDecimal beforeTrust = account.getTrustBalance();
         BigDecimal beforeOp = account.getOperationalBalance();
 
         if ("trust".equalsIgnoreCase(from)) {
-            beforeTrust = beforeTrust.add(amount); // because after = before - amount
+            beforeTrust = beforeTrust.add(amount);
         } else {
             beforeOp = beforeOp.add(amount);
         }
 
         AuditLog logEntry = AuditLog.builder()
+                .orgId(account.getOrgId())
                 .accountId(account.getId())
                 .actionType(ActionType.TRANSFER)
                 .amountDelta(amount)
@@ -134,13 +138,17 @@ public class AuditLogServiceImpl implements AuditLogService {
 
     @Override
     public Page<AuditLogResponseDto> getAuditLogs(UUID accountId, Pageable pageable) {
-        return repository.findByAccountId(accountId, pageable).map(mapper::toResponseDto);
+        UUID orgId = TenantContext.require();
+        return repository.findByOrgIdAndAccountId(orgId, accountId, pageable).map(mapper::toResponseDto);
     }
 
     @Override
     public Page<AuditLogResponseDto> getAuditLogsWithFilters(AuditLogFilterDto filter, Pageable pageable) {
+        UUID orgId = TenantContext.require();
+
         Specification<AuditLog> spec = Specification
-                .where(AuditLogSpecifications.accountIdEquals(filter.getAccountId()))
+                .where(AuditLogSpecifications.hasOrgId(orgId))
+                .and(AuditLogSpecifications.accountIdEquals(filter.getAccountId()))
                 .and(AuditLogSpecifications.actionTypeEquals(filter.getActionType()))
                 .and(AuditLogSpecifications.performedAtAfter(filter.getFromDate()))
                 .and(AuditLogSpecifications.performedAtBefore(filter.getToDate()));

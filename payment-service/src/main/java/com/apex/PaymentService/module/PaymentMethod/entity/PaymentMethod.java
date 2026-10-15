@@ -24,13 +24,16 @@ public class PaymentMethod {
     @GeneratedValue(strategy = GenerationType.UUID)
     private UUID id;
 
+    @Column(name = "org_id", columnDefinition = "UUID", nullable = false, updatable = false)
+    private UUID orgId;
+
     @Column(name = "tenant_id", nullable = false)
     private UUID tenantId;
 
     @Column(name = "gateway_customer_id", length = 100, nullable = false)
     private String gatewayCustomerId;
 
-    @Column(name = "gateway_payment_method_id", length = 100, nullable = false, unique = true)
+    @Column(name = "gateway_payment_method_id", length = 100, nullable = false)
     private String gatewayPaymentMethodId;
 
     @Enumerated(EnumType.STRING)
@@ -59,4 +62,11 @@ public class PaymentMethod {
     @UpdateTimestamp
     @Column(name = "updated_at")
     private LocalDateTime updatedAt;
+
+    @PrePersist
+    protected void guardOrg() {
+        if (orgId == null) {
+            throw new IllegalStateException("org_id is required — set TenantContext before saving");
+        }
+    }
 }

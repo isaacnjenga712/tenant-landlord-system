@@ -27,7 +27,10 @@ public class SecurityDeposit {
     @GeneratedValue(strategy = GenerationType.UUID)
     private UUID id;
 
-    @Column(name = "lease_id", nullable = false, unique = true)
+    @Column(name = "org_id", columnDefinition = "UUID", nullable = false, updatable = false)
+    private UUID orgId;
+
+    @Column(name = "lease_id", nullable = false)
     private UUID leaseId;
 
     @Column(name = "total_deposit", precision = 12, scale = 2, nullable = false)
@@ -59,7 +62,12 @@ public class SecurityDeposit {
     @Column(name = "updated_at")
     private LocalDateTime updatedAt;
 
-    // ---------- Business logic ----------
+    @PrePersist
+    protected void guardOrg() {
+        if (orgId == null) {
+            throw new IllegalStateException("org_id is required — set TenantContext before saving");
+        }
+    }
 
     public void addDeduction(BigDecimal amount) {
         if (amount == null || amount.compareTo(BigDecimal.ZERO) <= 0) {
@@ -91,7 +99,6 @@ public class SecurityDeposit {
         }
         this.returnAmount = returnAmount;
         this.returnedDate = (returnDate != null) ? returnDate : LocalDate.now();
-        // Optionally set currentBalance = BigDecimal.ZERO to reflect depletion, but we keep it as is.
     }
 
     public boolean isActive() {

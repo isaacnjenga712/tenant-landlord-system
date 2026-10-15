@@ -12,7 +12,7 @@ import java.util.UUID;
 public interface AuditLogRepository extends JpaRepository<AuditLog, UUID>,
                                             JpaSpecificationExecutor<AuditLog> {
 
-    Page<AuditLog> findByAccountId(UUID accountId, Pageable pageable);
+    Page<AuditLog> findByOrgIdAndAccountId(UUID orgId, UUID accountId, Pageable pageable);
 
-    Page<AuditLog> findByAccountIdAndActionType(UUID accountId, ActionType actionType, Pageable pageable);
+    Page<AuditLog> findByOrgIdAndAccountIdAndActionType(UUID orgId, UUID accountId, ActionType actionType, Pageable pageable);
 }

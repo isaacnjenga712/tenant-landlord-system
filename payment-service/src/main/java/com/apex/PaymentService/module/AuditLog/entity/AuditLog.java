@@ -26,6 +26,9 @@ public class AuditLog {
     @GeneratedValue(strategy = GenerationType.UUID)
     private UUID id;
 
+    @Column(name = "org_id", columnDefinition = "UUID", nullable = false, updatable = false)
+    private UUID orgId;
+
     @Column(name = "account_id", nullable = false)
     private UUID accountId;
 
@@ -56,5 +59,5 @@ public class AuditLog {
 
     @JdbcTypeCode(SqlTypes.JSON)
     @Column(columnDefinition = "jsonb")
-    private String metadata;  // extra info as JSON
+    private String metadata;
 }

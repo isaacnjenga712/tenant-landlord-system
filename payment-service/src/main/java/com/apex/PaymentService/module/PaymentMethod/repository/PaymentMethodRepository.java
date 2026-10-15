@@ -7,18 +7,25 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
+
 import java.util.Optional;
 import java.util.UUID;
 
 public interface PaymentMethodRepository extends JpaRepository<PaymentMethod, UUID> {
 
-    Optional<PaymentMethod> findByGatewayPaymentMethodId(String gatewayPaymentMethodId);
+    // ---- org-scoped lookups (HTTP path) ----
 
-    Page<PaymentMethod> findByTenantId(UUID tenantId, Pageable pageable);
+    Optional<PaymentMethod> findByIdAndOrgId(UUID id, UUID orgId);
 
-    Optional<PaymentMethod> findByTenantIdAndIsDefaultTrue(UUID tenantId);
+    boolean existsByIdAndOrgId(UUID id, UUID orgId);
+
+    Optional<PaymentMethod> findByOrgIdAndGatewayPaymentMethodId(UUID orgId, String gatewayPaymentMethodId);
+
+    Page<PaymentMethod> findByOrgIdAndTenantId(UUID orgId, UUID tenantId, Pageable pageable);
+
+    Optional<PaymentMethod> findByOrgIdAndTenantIdAndIsDefaultTrue(UUID orgId, UUID tenantId);
 
     @Modifying
-    @Query("UPDATE PaymentMethod p SET p.isDefault = false WHERE p.tenantId = :tenantId")
-    void clearDefaultFlagForTenant(@Param("tenantId") UUID tenantId);
+    @Query("UPDATE PaymentMethod p SET p.isDefault = false WHERE p.orgId = :orgId AND p.tenantId = :tenantId")
+    void clearDefaultFlagForOrgAndTenant(@Param("orgId") UUID orgId, @Param("tenantId") UUID tenantId);
 }

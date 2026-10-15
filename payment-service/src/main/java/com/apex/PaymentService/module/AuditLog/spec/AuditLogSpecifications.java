@@ -9,6 +9,11 @@ import java.util.UUID;
 
 public class AuditLogSpecifications {
 
+    /** Mandatory org scope. */
+    public static Specification<AuditLog> hasOrgId(UUID orgId) {
+        return (root, query, cb) -> cb.equal(root.get("orgId"), orgId);
+    }
+
     public static Specification<AuditLog> accountIdEquals(UUID accountId) {
         return (root, query, cb) ->
                 accountId == null ? null : cb.equal(root.get("accountId"), accountId);

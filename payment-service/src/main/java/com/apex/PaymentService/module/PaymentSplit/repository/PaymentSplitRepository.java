@@ -6,18 +6,28 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
+
 import java.math.BigDecimal;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 public interface PaymentSplitRepository extends JpaRepository<PaymentSplit, UUID> {
 
-    List<PaymentSplit> findByPaymentId(UUID paymentId);
+    // ---- org-scoped lookups (HTTP path) ----
 
-    Page<PaymentSplit> findByPaymentId(UUID paymentId, Pageable pageable);
+    Optional<PaymentSplit> findByIdAndOrgId(UUID id, UUID orgId);
 
-    Page<PaymentSplit> findByInvoiceId(UUID invoiceId, Pageable pageable);
+    boolean existsByIdAndOrgId(UUID id, UUID orgId);
 
-    @Query("SELECT COALESCE(SUM(s.allocatedAmount), 0) FROM PaymentSplit s WHERE s.paymentId = :paymentId")
-    BigDecimal sumAllocatedAmountByPaymentId(@Param("paymentId") UUID paymentId);
+    List<PaymentSplit> findByOrgIdAndPaymentId(UUID orgId, UUID paymentId);
+
+    Page<PaymentSplit> findByOrgIdAndPaymentId(UUID orgId, UUID paymentId, Pageable pageable);
+
+    Page<PaymentSplit> findByOrgIdAndInvoiceId(UUID orgId, UUID invoiceId, Pageable pageable);
+
+    @Query("SELECT COALESCE(SUM(s.allocatedAmount), 0) FROM PaymentSplit s " +
+           "WHERE s.orgId = :orgId AND s.paymentId = :paymentId")
+    BigDecimal sumAllocatedAmountByOrgIdAndPaymentId(@Param("orgId") UUID orgId,
+                                                     @Param("paymentId") UUID paymentId);
 }

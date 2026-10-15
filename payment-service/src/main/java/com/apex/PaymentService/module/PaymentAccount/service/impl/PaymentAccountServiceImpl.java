@@ -13,6 +13,7 @@ import com.apex.PaymentService.module.PaymentAccount.mapper.PaymentAccountMapper
 import com.apex.PaymentService.module.PaymentAccount.repository.PaymentAccountRepository;
 import com.apex.PaymentService.module.PaymentAccount.service.PaymentAccountService;
 import com.apex.PaymentService.module.PaymentAccount.service.external.EntityValidationService;
+import com.platform.common.tenant.TenantContext;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
@@ -35,34 +36,39 @@ public class PaymentAccountServiceImpl implements PaymentAccountService {
     @Override
     @Transactional
     public PaymentAccountResponseDto createAccount(PaymentAccountCreateDto dto) {
+        UUID orgId = TenantContext.require();
+
         if (!entityValidationService.exists(dto.getEntityType(), dto.getEntityId())) {
             throw new ResourceNotFoundException(
                 String.format("%s with ID %s not found", dto.getEntityType(), dto.getEntityId())
             );
         }
-        if (repository.findByEntityTypeAndEntityId(dto.getEntityType(), dto.getEntityId()).isPresent()) {
+        if (repository.findByOrgIdAndEntityTypeAndEntityId(orgId, dto.getEntityType(), dto.getEntityId()).isPresent()) {
             throw new BusinessException("Account already exists for this entity");
         }
 
         PaymentAccount account = mapper.toEntity(dto);
+        account.setOrgId(orgId);
         PaymentAccount saved = repository.save(account);
-        log.info("Created payment account for {} with id {}", dto.getEntityType(), saved.getId());
+        log.info("Created payment account for {} with id {} org {}",
+                dto.getEntityType(), saved.getId(), orgId);
         return mapper.toResponseDto(saved);
     }
 
     @Override
     @Transactional(readOnly = true)
     public PaymentAccountResponseDto getAccount(UUID id) {
-        PaymentAccount account = repository.findById(id)
+        UUID orgId = TenantContext.require();
+        PaymentAccount account = repository.findByIdAndOrgId(id, orgId)
                 .orElseThrow(() -> new ResourceNotFoundException("Account not found"));
         return mapper.toResponseDto(account);
     }
 
-    // ✅ ADDED MISSING METHOD
     @Override
     @Transactional(readOnly = true)
     public PaymentAccountResponseDto getAccountByEntity(EntityType entityType, UUID entityId) {
-        PaymentAccount account = repository.findByEntityTypeAndEntityId(entityType, entityId)
+        UUID orgId = TenantContext.require();
+        PaymentAccount account = repository.findByOrgIdAndEntityTypeAndEntityId(orgId, entityType, entityId)
                 .orElseThrow(() -> new ResourceNotFoundException("Account not found for entity"));
         return mapper.toResponseDto(account);
     }
@@ -70,16 +76,18 @@ public class PaymentAccountServiceImpl implements PaymentAccountService {
     @Override
     @Transactional(readOnly = true)
     public Page<PaymentAccountResponseDto> listAccounts(EntityType entityType, Pageable pageable) {
+        UUID orgId = TenantContext.require();
         if (entityType != null) {
-            return repository.findByEntityType(entityType, pageable).map(mapper::toResponseDto);
+            return repository.findByOrgIdAndEntityType(orgId, entityType, pageable).map(mapper::toResponseDto);
         }
-        return repository.findAll(pageable).map(mapper::toResponseDto);
+        return repository.findByOrgId(orgId, pageable).map(mapper::toResponseDto);
     }
 
     @Override
     @Transactional
     public PaymentAccountResponseDto updateAccount(UUID id, PaymentAccountUpdateDto dto) {
-        PaymentAccount account = repository.findById(id)
+        UUID orgId = TenantContext.require();
+        PaymentAccount account = repository.findByIdAndOrgId(id, orgId)
                 .orElseThrow(() -> new ResourceNotFoundException("Account not found"));
 
         if (dto.getCurrency() != null) {
@@ -97,7 +105,8 @@ public class PaymentAccountServiceImpl implements PaymentAccountService {
     @Override
     @Transactional
     public void deleteAccount(UUID id) {
-        PaymentAccount account = repository.findById(id)
+        UUID orgId = TenantContext.require();
+        PaymentAccount account = repository.findByIdAndOrgId(id, orgId)
                 .orElseThrow(() -> new ResourceNotFoundException("Account not found"));
 
         if (account.getTrustBalance().compareTo(BigDecimal.ZERO) != 0 ||
@@ -112,7 +121,8 @@ public class PaymentAccountServiceImpl implements PaymentAccountService {
     @Override
     @Transactional
     public PaymentAccountResponseDto adjustBalance(UUID id, BalanceAdjustmentDto dto) {
-        PaymentAccount account = repository.findByIdWithLock(id)
+        UUID orgId = TenantContext.require();
+        PaymentAccount account = repository.findByIdAndOrgIdWithLock(id, orgId)
                 .orElseThrow(() -> new ResourceNotFoundException("Account not found"));
 
         BigDecimal delta = dto.getAmount();
@@ -132,11 +142,13 @@ public class PaymentAccountServiceImpl implements PaymentAccountService {
     @Override
     @Transactional
     public PaymentAccountResponseDto transferBalance(UUID id, TransferRequestDto dto) {
+        UUID orgId = TenantContext.require();
+
         if (dto.getFromBalance().equalsIgnoreCase(dto.getToBalance())) {
             throw new BusinessException("Source and destination balances must be different");
         }
 
-        PaymentAccount account = repository.findByIdWithLock(id)
+        PaymentAccount account = repository.findByIdAndOrgIdWithLock(id, orgId)
                 .orElseThrow(() -> new ResourceNotFoundException("Account not found"));
 
         BigDecimal amount = dto.getAmount();
@@ -162,13 +174,19 @@ public class PaymentAccountServiceImpl implements PaymentAccountService {
         account.addToTrust(trustDelta);
         account.addToOperational(opDelta);
         PaymentAccount updated = repository.save(account);
-        log.info("Transferred {} from {} to {} on account {}", amount, dto.getFromBalance(), dto.getToBalance(), id);
+        log.info("Transferred {} from {} to {} on account {} org {}",
+                amount, dto.getFromBalance(), dto.getToBalance(), id, orgId);
         return mapper.toResponseDto(updated);
     }
 
     @Override
     @Transactional(readOnly = true)
     public boolean exists(UUID id) {
+        // Called from PaymentSplit / other services. Scope by org if TenantContext is set.
+        UUID orgId = TenantContext.get();
+        if (orgId != null) {
+            return repository.existsByIdAndOrgId(id, orgId);
+        }
         return repository.existsById(id);
     }
 }

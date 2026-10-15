@@ -4,14 +4,22 @@ import com.apex.PaymentService.module.InvoiceLineItem.entity.InvoiceLineItem;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 public interface InvoiceLineItemRepository extends JpaRepository<InvoiceLineItem, UUID> {
 
-    List<InvoiceLineItem> findByInvoiceId(UUID invoiceId);
+    // ---- org-scoped lookups (HTTP path) ----
 
-    Page<InvoiceLineItem> findByInvoiceId(UUID invoiceId, Pageable pageable);
+    Optional<InvoiceLineItem> findByIdAndOrgId(UUID id, UUID orgId);
 
-    void deleteByInvoiceId(UUID invoiceId);
+    boolean existsByIdAndOrgId(UUID id, UUID orgId);
+
+    List<InvoiceLineItem> findByOrgIdAndInvoiceId(UUID orgId, UUID invoiceId);
+
+    Page<InvoiceLineItem> findByOrgIdAndInvoiceId(UUID orgId, UUID invoiceId, Pageable pageable);
+
+    void deleteByOrgIdAndInvoiceId(UUID orgId, UUID invoiceId);
 }

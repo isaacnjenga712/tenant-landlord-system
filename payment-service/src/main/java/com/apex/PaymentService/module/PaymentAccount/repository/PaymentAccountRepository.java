@@ -9,38 +9,25 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
+
 import java.util.Optional;
 import java.util.UUID;
 
 public interface PaymentAccountRepository extends JpaRepository<PaymentAccount, UUID> {
 
-    /**
-     * Finds all payment accounts for a given entity type with pagination.
-     *
-     * @param entityType the type of entity (tenant, landlord, property)
-     * @param pageable   pagination information
-     * @return a page of PaymentAccount entities
-     */
-    Page<PaymentAccount> findByEntityType(EntityType entityType, Pageable pageable);
+    // ---- org-scoped lookups (HTTP path) ----
 
-    /**
-     * Finds a payment account by its entity type and entity ID.
-     * Used to check for duplicate accounts and to retrieve accounts by entity.
-     *
-     * @param entityType the type of entity
-     * @param entityId   the UUID of the entity
-     * @return an Optional containing the PaymentAccount if found
-     */
-    Optional<PaymentAccount> findByEntityTypeAndEntityId(EntityType entityType, UUID entityId);
+    Optional<PaymentAccount> findByIdAndOrgId(UUID id, UUID orgId);
 
-    /**
-     * Finds a payment account by ID with a pessimistic write lock.
-     * Used for balance updates to prevent race conditions.
-     *
-     * @param id the account UUID
-     * @return an Optional containing the locked PaymentAccount
-     */
+    boolean existsByIdAndOrgId(UUID id, UUID orgId);
+
+    Page<PaymentAccount> findByOrgIdAndEntityType(UUID orgId, EntityType entityType, Pageable pageable);
+
+    Page<PaymentAccount> findByOrgId(UUID orgId, Pageable pageable);
+
+    Optional<PaymentAccount> findByOrgIdAndEntityTypeAndEntityId(UUID orgId, EntityType entityType, UUID entityId);
+
     @Lock(LockModeType.PESSIMISTIC_WRITE)
-    @Query("SELECT p FROM PaymentAccount p WHERE p.id = :id AND p.isActive = true")
-    Optional<PaymentAccount> findByIdWithLock(@Param("id") UUID id);
+    @Query("SELECT p FROM PaymentAccount p WHERE p.id = :id AND p.orgId = :orgId AND p.isActive = true")
+    Optional<PaymentAccount> findByIdAndOrgIdWithLock(@Param("id") UUID id, @Param("orgId") UUID orgId);
 }

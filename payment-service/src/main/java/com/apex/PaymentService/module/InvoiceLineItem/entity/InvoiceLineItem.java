@@ -26,6 +26,9 @@ public class InvoiceLineItem {
     @GeneratedValue(strategy = GenerationType.UUID)
     private UUID id;
 
+    @Column(name = "org_id", columnDefinition = "UUID", nullable = false, updatable = false)
+    private UUID orgId;
+
     @Column(name = "invoice_id", nullable = false)
     private UUID invoiceId;
 
@@ -56,10 +59,13 @@ public class InvoiceLineItem {
     @Column(name = "updated_at")
     private LocalDateTime updatedAt;
 
-    /**
-     * Calculates the total amount: (unitPrice * quantity) + tax.
-     * Tax is calculated as a percentage of the subtotal.
-     */
+    @PrePersist
+    protected void guardOrg() {
+        if (orgId == null) {
+            throw new IllegalStateException("org_id is required — set TenantContext before saving");
+        }
+    }
+
     public void calculateTotal() {
         if (this.quantity == null) this.quantity = 1;
         if (this.unitPrice == null) this.unitPrice = BigDecimal.ZERO;

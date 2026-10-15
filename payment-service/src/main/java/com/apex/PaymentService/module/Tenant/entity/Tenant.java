@@ -25,13 +25,16 @@ public class Tenant {
     @GeneratedValue(strategy = GenerationType.UUID)
     private UUID id;
 
+    @Column(name = "org_id", columnDefinition = "UUID", nullable = false, updatable = false)
+    private UUID orgId;
+
     @Column(name = "first_name", length = 100, nullable = false)
     private String firstName;
 
     @Column(name = "last_name", length = 100, nullable = false)
     private String lastName;
 
-    @Column(length = 255, nullable = false, unique = true)
+    @Column(length = 255, nullable = false)
     private String email;
 
     @Column(length = 20)
@@ -51,4 +54,11 @@ public class Tenant {
     @UpdateTimestamp
     @Column(name = "updated_at")
     private LocalDateTime updatedAt;
+
+    @PrePersist
+    protected void guardOrg() {
+        if (orgId == null) {
+            throw new IllegalStateException("org_id is required — set TenantContext before saving");
+        }
+    }
 }

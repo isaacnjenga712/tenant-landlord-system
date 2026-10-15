@@ -23,6 +23,9 @@ public class PaymentSplit {
     @GeneratedValue(strategy = GenerationType.UUID)
     private UUID id;
 
+    @Column(name = "org_id", columnDefinition = "UUID", nullable = false, updatable = false)
+    private UUID orgId;
+
     @Column(name = "payment_id", nullable = false)
     private UUID paymentId;
 
@@ -35,4 +38,11 @@ public class PaymentSplit {
     @CreationTimestamp
     @Column(name = "created_at", updatable = false)
     private LocalDateTime createdAt;
+
+    @PrePersist
+    protected void guardOrg() {
+        if (orgId == null) {
+            throw new IllegalStateException("org_id is required — set TenantContext before saving");
+        }
+    }
 }

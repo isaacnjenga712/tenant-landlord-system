@@ -19,19 +19,24 @@ import java.util.UUID;
 @NoArgsConstructor
 @AllArgsConstructor
 @CompoundIndexes({
-    @CompoundIndex(name = "recipient_created_idx", def = "{'recipientPublicId': 1, 'createdAt': -1}"),
-    @CompoundIndex(name = "recipient_unread_idx",  def = "{'recipientPublicId': 1, 'read': 1}")
+    @CompoundIndex(
+            name = "org_recipient_created_idx",
+            def = "{'organizationId': 1, 'recipientPublicId': 1, 'createdAt': -1}"),
+    @CompoundIndex(
+            name = "org_recipient_unread_idx",
+            def = "{'organizationId': 1, 'recipientPublicId': 1, 'read': 1}")
 })
 public class Notification {
 
     @Id
     private String id;
 
+    /** SaaS tenant (org) that owns this notification. */
+    @Indexed
+    private UUID organizationId;
+
     @Indexed
     private UUID recipientPublicId;
-
-    /** Reserved for future SaaS tenancy. Null today. */
-    private UUID organizationId;
 
     private String eventType;
     private String subject;

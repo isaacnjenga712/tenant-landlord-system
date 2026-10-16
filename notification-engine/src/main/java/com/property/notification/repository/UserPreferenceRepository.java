@@ -9,11 +9,17 @@ import java.util.UUID;
 
 public interface UserPreferenceRepository extends MongoRepository<UserPreference, String> {
 
+    // ---- org-scoped HTTP paths ----
+
+    Optional<UserPreference> findByOrganizationIdAndPublicId(UUID organizationId, UUID publicId);
+
+    Optional<UserPreference> findByOrganizationIdAndEmail(UUID organizationId, String email);
+
+    List<UserPreference> findByOrganizationIdAndSmsOptInTrue(UUID organizationId);
+
+    List<UserPreference> findByOrganizationIdAndWhatsappOptInTrue(UUID organizationId);
+
+    // ---- fallback for Kafka consumer (no TenantContext) ----
+
     Optional<UserPreference> findByPublicId(UUID publicId);
-
-    Optional<UserPreference> findByEmail(String email);
-
-    List<UserPreference> findBySmsOptInTrue();
-
-    List<UserPreference> findByWhatsappOptInTrue();
 }

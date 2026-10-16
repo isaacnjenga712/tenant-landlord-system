@@ -28,7 +28,8 @@ public class ChannelDispatcher {
     private final NotificationInboxService inboxService;
     private final SimpMessagingTemplate messagingTemplate;
 
-    public void dispatch(UUID recipientPublicId,
+    public void dispatch(UUID organizationId,
+                         UUID recipientPublicId,
                          String eventType,
                          String subject,
                          String body,
@@ -39,6 +40,7 @@ public class ChannelDispatcher {
             return;
         }
 
+        // Look up preferences (un-scoped) — caller supplies the org.
         UserPreference prefs = prefsRepo.findByPublicId(recipientPublicId).orElse(null);
         if (prefs == null) {
             log.info("No preferences found for user {} — skipping dispatch of {}",
@@ -47,20 +49,23 @@ public class ChannelDispatcher {
         }
 
         // ─────────────────────────────────────────────────────────
-        // IN_APP — Option A: save to inbox, then push structured DTO
+        // IN_APP — save to inbox, then push structured DTO
         // ─────────────────────────────────────────────────────────
         if (prefs.isInAppOptIn()) {
-            handleInApp(recipientPublicId, eventType, subject, body, rawPayload);
+            handleInApp(organizationId, recipientPublicId, eventType, subject, body, rawPayload);
         }
 
         // ─────────────────────────────────────────────────────────
         // Other channels (EMAIL, SMS, WHATSAPP) — unchanged fan-out
         // ─────────────────────────────────────────────────────────
         for (NotificationChannel channel : channels) {
-            if (IN_APP.equals(channel.name())) continue;   // handled above
+            if (IN_APP.equals(channel.name())) continue;
+
             if (!channel.isOptedIn(prefs)) continue;
 
             NotificationLog entry = NotificationLog.builder()
+                    .organizationId(organizationId)
+                    .recipientPublicId(recipientPublicId)
                     .eventType(eventType)
                     .channel(NotificationLog.Channel.valueOf(channel.name()))
                     .status(NotificationLog.Status.PENDING)
@@ -73,7 +78,8 @@ public class ChannelDispatcher {
             try {
                 channel.send(prefs, subject, body);
                 entry.setStatus(NotificationLog.Status.SENT);
-                log.debug("Dispatched {} via {} to {}", eventType, channel.name(), recipientPublicId);
+                log.debug("Dispatched {} via {} to {} (org {})",
+                        eventType, channel.name(), recipientPublicId, organizationId);
             } catch (Exception e) {
                 entry.setStatus(NotificationLog.Status.FAILED);
                 entry.setErrorMessage(e.getMessage());
@@ -85,14 +91,19 @@ public class ChannelDispatcher {
         }
     }
 
-    private void handleInApp(UUID recipientPublicId, String eventType,
-                             String subject, String body, String rawPayload) {
+    private void handleInApp(UUID organizationId,
+                             UUID recipientPublicId,
+                             String eventType,
+                             String subject,
+                             String body,
+                             String rawPayload) {
         NotificationDto saved = null;
         String error = null;
 
         try {
             // 1. Persist to Mongo → get id
-            saved = inboxService.save(recipientPublicId, eventType, subject, body, rawPayload);
+            saved = inboxService.save(
+                    organizationId, recipientPublicId, eventType, subject, body, rawPayload);
 
             // 2. Push structured DTO to the user's STOMP queue
             messagingTemplate.convertAndSendToUser(
@@ -100,7 +111,8 @@ public class ChannelDispatcher {
                     "/queue/notifications",
                     saved);
 
-            log.debug("IN_APP pushed id={} to {}", saved.getId(), recipientPublicId);
+            log.debug("IN_APP pushed id={} to {} (org {})",
+                    saved.getId(), recipientPublicId, organizationId);
         } catch (Exception e) {
             error = e.getMessage();
             log.warn("IN_APP failed for {}: {}", recipientPublicId, e.getMessage());
@@ -108,6 +120,8 @@ public class ChannelDispatcher {
 
         // 3. Audit log
         logRepo.save(NotificationLog.builder()
+                .organizationId(organizationId)
+                .recipientPublicId(recipientPublicId)
                 .eventType(eventType)
                 .channel(NotificationLog.Channel.IN_APP)
                 .status(saved != null ? NotificationLog.Status.SENT : NotificationLog.Status.FAILED)

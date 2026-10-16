@@ -4,6 +4,7 @@ import com.property.notification.domain.NotificationLog;
 import com.property.notification.repository.NotificationLogRepository;
 import com.platform.common.dtos.PageResponse;
 import com.platform.common.dtos.admin.NotificationLogDto;
+import com.platform.common.tenant.TenantContext;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -12,6 +13,7 @@ import org.springframework.data.domain.Sort;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.ZoneOffset;
+import java.util.UUID;
 
 @RestController
 @RequestMapping("/api/v1/internal/notifications")
@@ -28,8 +30,9 @@ public class InternalNotificationController {
             @RequestParam(required = false) String channel,
             @RequestParam(required = false) String status) {
 
+        UUID orgId = TenantContext.require();
         Pageable pageable = PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "createdAt"));
-        Page<NotificationLog> result = logRepo.findAll(pageable);
+        Page<NotificationLog> result = logRepo.findByOrganizationId(orgId, pageable);
 
         return new PageResponse<>(
                 result.getContent().stream().map(this::toDto).toList(),
@@ -48,15 +51,13 @@ public class InternalNotificationController {
     private NotificationLogDto toDto(NotificationLog l) {
         return new NotificationLogDto(
                 l.getId(),
-                null,                              // recipientPublicId — add to entity if you track it
+                l.getRecipientPublicId() != null ? l.getRecipientPublicId().toString() : null,
                 l.getEventType(),
                 l.getChannel() != null ? l.getChannel().name() : null,
                 l.getStatus() != null ? l.getStatus().name() : null,
                 l.getAttempts(),
                 l.getErrorMessage(),
-                l.getCreatedAt() != null
-                        ? l.getCreatedAt().toInstant(ZoneOffset.UTC)
-                        : null
+                l.getCreatedAt() != null ? l.getCreatedAt().toInstant(ZoneOffset.UTC) : null
         );
     }
 }

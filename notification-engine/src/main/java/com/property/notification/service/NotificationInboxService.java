@@ -5,6 +5,7 @@ import com.property.notification.dto.NotificationDto;
 import com.property.notification.dto.PageResponse;
 import com.property.notification.exception.ResourceNotFoundException;
 import com.property.notification.repository.NotificationRepository;
+import com.platform.common.tenant.TenantContext;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.PageRequest;
@@ -21,9 +22,11 @@ public class NotificationInboxService {
 
     private final NotificationRepository repo;
 
-    public NotificationDto save(UUID recipientPublicId, String eventType,
+    /** Called from ChannelDispatcher (Kafka path). orgId comes from the event. */
+    public NotificationDto save(UUID organizationId, UUID recipientPublicId, String eventType,
                                 String subject, String body, String rawPayload) {
         Notification n = Notification.builder()
+                .organizationId(organizationId)
                 .recipientPublicId(recipientPublicId)
                 .eventType(eventType)
                 .subject(subject)
@@ -36,18 +39,22 @@ public class NotificationInboxService {
     }
 
     public PageResponse<NotificationDto> list(UUID recipientPublicId, int page, int size) {
+        UUID orgId = TenantContext.require();
         Pageable pageable = PageRequest.of(page, size);
         return PageResponse.of(
-                repo.findByRecipientPublicIdOrderByCreatedAtDesc(recipientPublicId, pageable),
+                repo.findByOrganizationIdAndRecipientPublicIdOrderByCreatedAtDesc(
+                        orgId, recipientPublicId, pageable),
                 this::toDto);
     }
 
     public long unreadCount(UUID recipientPublicId) {
-        return repo.countByRecipientPublicIdAndReadIsFalse(recipientPublicId);
+        UUID orgId = TenantContext.require();
+        return repo.countByOrganizationIdAndRecipientPublicIdAndReadIsFalse(orgId, recipientPublicId);
     }
 
     public void markRead(UUID recipientPublicId, String id) {
-        Notification n = repo.findById(id)
+        UUID orgId = TenantContext.require();
+        Notification n = repo.findByIdAndOrganizationId(id, orgId)
                 .filter(x -> x.getRecipientPublicId().equals(recipientPublicId))
                 .orElseThrow(() -> new ResourceNotFoundException("Notification not found"));
         if (!n.isRead()) {
@@ -58,13 +65,15 @@ public class NotificationInboxService {
     }
 
     public long markAllRead(UUID recipientPublicId) {
-        return repo.markAllRead(recipientPublicId, LocalDateTime.now());
+        UUID orgId = TenantContext.require();
+        return repo.markAllReadInOrg(orgId, recipientPublicId, LocalDateTime.now());
     }
 
     public void delete(UUID recipientPublicId, String id) {
-        repo.findById(id)
-            .filter(x -> x.getRecipientPublicId().equals(recipientPublicId))
-            .ifPresent(repo::delete);
+        UUID orgId = TenantContext.require();
+        repo.findByIdAndOrganizationId(id, orgId)
+                .filter(x -> x.getRecipientPublicId().equals(recipientPublicId))
+                .ifPresent(repo::delete);
     }
 
     public NotificationDto toDto(Notification n) {

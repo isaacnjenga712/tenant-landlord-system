@@ -22,6 +22,7 @@ public class MpesaEventProducer {
         event.put("eventType", "mpesa.events.stk.result");
         event.put("transactionId", tx.getId());
         event.put("checkoutRequestId", tx.getCheckoutRequestId());
+        event.put("organizationId", parseUuid(tx.getOrgId()));   // ← NEW
         event.put("tenantId", parseUuid(tx.getTenantId()));
         event.put("leaseId", parseUuid(tx.getLeaseId()));
         event.put("amount", tx.getAmount());
@@ -29,11 +30,9 @@ public class MpesaEventProducer {
         event.put("mpesaReceipt", tx.getMpesaReceiptNumber());
         event.put("correlationId", UUID.randomUUID());
 
-        // landlordId is not on the transaction — notification engine
-        // resolves tenant only for now (add cross-service lookup later)
-        kafkaTemplate.send("mpesa.events.stk.result", tx.getId().toString(), event);
-        log.info("Published StkResultEvent for {} status={} amount={}",
-                tx.getCheckoutRequestId(), tx.getStatus(), tx.getAmount());
+        kafkaTemplate.send("mpesa.events.stk.result", tx.getId(), event);
+        log.info("Published StkResultEvent for {} status={} amount={} org={}",
+                tx.getCheckoutRequestId(), tx.getStatus(), tx.getAmount(), tx.getOrgId());
     }
 
     private UUID parseUuid(Object v) {

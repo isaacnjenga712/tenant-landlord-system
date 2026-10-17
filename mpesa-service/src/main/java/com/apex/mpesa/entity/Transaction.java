@@ -1,7 +1,6 @@
 package com.apex.mpesa.entity;
 
 import lombok.Data;
-
 import lombok.NoArgsConstructor;
 import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.UpdateTimestamp;
@@ -27,6 +26,10 @@ public class Transaction {
     @Id
     private String id;
 
+    /** SaaS tenant (org) — stored as String to match existing columns. */
+    @Column(name = "org_id", nullable = false, updatable = false, length = 36)
+    private String orgId;
+
     @Column(unique = true, nullable = false)
     private String checkoutRequestId;
 
@@ -34,7 +37,7 @@ public class Transaction {
 
     private String phoneNumber;
 
-    private BigDecimal amount;    // changed from Double to BigDecimal
+    private BigDecimal amount;
 
     private String mpesaReceiptNumber;
 
@@ -66,6 +69,9 @@ public class Transaction {
     public void generateId() {
         if (this.id == null) {
             this.id = UUID.randomUUID().toString();
+        }
+        if (this.orgId == null) {
+            throw new IllegalStateException("org_id is required — set TenantContext before saving");
         }
     }
 }

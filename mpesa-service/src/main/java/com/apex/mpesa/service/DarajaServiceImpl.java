@@ -8,6 +8,7 @@ import com.apex.mpesa.producer.MpesaEventProducer;
 import com.apex.mpesa.repository.TransactionRepository;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.platform.common.tenant.TenantContext;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.*;
@@ -24,6 +25,7 @@ import java.util.Base64;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 import java.util.stream.Collectors;
 
 @Service
@@ -37,12 +39,14 @@ public class DarajaServiceImpl implements DarajaService {
     private final RestTemplate restTemplate = new RestTemplate();
     private final ObjectMapper objectMapper = new ObjectMapper();
 
-    // -------- INITIATE STK PUSH --------
+    // -------- INITIATE STK PUSH (HTTP — has TenantContext) --------
     @Override
     @Transactional
     public PaymentInitiationResponseDto initiateStkPush(StkPushRequestDto request) throws Exception {
-        log.info("Initiating STK Push for tenant {} amount {} phone {}",
-                request.getTenantId(), request.getAmount(), request.getPhone());
+        UUID orgId = TenantContext.require();
+
+        log.info("Initiating STK Push for org {} tenant {} amount {} phone {}",
+                orgId, request.getTenantId(), request.getAmount(), request.getPhone());
 
         String token = getOAuthToken();
         String timestamp = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMddHHmmss"));
@@ -61,9 +65,6 @@ public class DarajaServiceImpl implements DarajaService {
         body.put("AccountReference", request.getAccountReference() != null ? request.getAccountReference() : "RentPayment");
         body.put("TransactionDesc", "Rent Payment");
 
-        log.info("STK push request body: CallBackURL={}, ShortCode={}, PhoneNumber={}",
-                darajaConfig.getCallbackUrl(), darajaConfig.getShortcode(), request.getPhone());
-
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.APPLICATION_JSON);
         headers.set("Authorization", "Bearer " + token);
@@ -72,8 +73,7 @@ public class DarajaServiceImpl implements DarajaService {
 
         ResponseEntity<JsonNode> response;
         try {
-            response = restTemplate.postForEntity(
-                    darajaConfig.getStkpushUrl(), entity, JsonNode.class);
+            response = restTemplate.postForEntity(darajaConfig.getStkpushUrl(), entity, JsonNode.class);
         } catch (HttpClientErrorException e) {
             log.error("Safaricom STK push rejected: status={} body={}",
                     e.getStatusCode(), e.getResponseBodyAsString());
@@ -84,14 +84,13 @@ public class DarajaServiceImpl implements DarajaService {
         }
 
         JsonNode responseBody = response.getBody();
-        log.info("Safaricom STK response: {}", responseBody);
-
         if (responseBody == null || responseBody.get("CheckoutRequestID") == null) {
             throw new IllegalStateException(
                     "Safaricom response missing CheckoutRequestID: " + responseBody);
         }
 
         Transaction transaction = new Transaction();
+        transaction.setOrgId(orgId.toString());          // ← stamp org
         transaction.setCheckoutRequestId(responseBody.get("CheckoutRequestID").asText());
         transaction.setMerchantRequestId(
                 responseBody.hasNonNull("MerchantRequestID")
@@ -111,21 +110,15 @@ public class DarajaServiceImpl implements DarajaService {
         dto.setMerchantRequestId(transaction.getMerchantRequestId());
         dto.setCheckoutRequestId(transaction.getCheckoutRequestId());
         dto.setResponseCode(
-                responseBody.hasNonNull("ResponseCode")
-                        ? responseBody.get("ResponseCode").asText()
-                        : "0");
+                responseBody.hasNonNull("ResponseCode") ? responseBody.get("ResponseCode").asText() : "0");
         dto.setResponseDescription(
-                responseBody.hasNonNull("ResponseDescription")
-                        ? responseBody.get("ResponseDescription").asText()
-                        : "");
+                responseBody.hasNonNull("ResponseDescription") ? responseBody.get("ResponseDescription").asText() : "");
         dto.setCustomerMessage(
-                responseBody.hasNonNull("CustomerMessage")
-                        ? responseBody.get("CustomerMessage").asText()
-                        : "");
+                responseBody.hasNonNull("CustomerMessage") ? responseBody.get("CustomerMessage").asText() : "");
         return dto;
     }
 
-    // -------- PROCESS CALLBACK --------
+    // -------- CALLBACK (external webhook — NO TenantContext) --------
     @Override
     @Transactional
     public void processCallback(MpesaCallbackDto callbackDto) throws Exception {
@@ -136,9 +129,16 @@ public class DarajaServiceImpl implements DarajaService {
 
         log.info("Processing callback for CheckoutRequestID: {}", checkoutRequestId);
 
+        // Un-scoped lookup is safe and correct here:
+        //  - Safaricom's webhook carries no X-Org-Id header
+        //  - CheckoutRequestID is globally unique (issued by Safaricom)
+        //  - The transaction's stored org_id is our source of truth for downstream
         Transaction transaction = transactionRepository.findByCheckoutRequestId(checkoutRequestId)
                 .orElseThrow(() -> new IllegalArgumentException(
                         "Transaction not found for CheckoutRequestID: " + checkoutRequestId));
+
+        String orgId = transaction.getOrgId();
+        log.info("Callback resolved to org {}", orgId);
 
         if (transaction.getStatus() != TransactionStatus.PENDING) {
             log.info("Callback for {} ignored – status already {}", checkoutRequestId, transaction.getStatus());
@@ -164,18 +164,18 @@ public class DarajaServiceImpl implements DarajaService {
                 }
             }
             transaction.setStatus(TransactionStatus.SUCCESS);
-            log.info("Payment successful: Receipt {} for KES {} from {}",
+            log.info("Payment successful: Receipt {} for KES {} from {} (org {})",
                     transaction.getMpesaReceiptNumber(),
                     transaction.getAmount(),
-                    transaction.getPhoneNumber());
+                    transaction.getPhoneNumber(),
+                    orgId);
         } else {
             transaction.setStatus(TransactionStatus.FAILED);
-            log.warn("Transaction failed: {} – {}", checkoutRequestId, resultDesc);
+            log.warn("Transaction failed: {} – {} (org {})", checkoutRequestId, resultDesc, orgId);
         }
 
         transactionRepository.save(transaction);
 
-        // Publish event to Kafka (fail-soft — callback must not fail if Kafka is down)
         try {
             mpesaEventProducer.publishStkResult(transaction);
         } catch (Exception e) {
@@ -184,10 +184,15 @@ public class DarajaServiceImpl implements DarajaService {
         }
     }
 
-    // -------- QUERY STATUS --------
+    // -------- QUERY STATUS (HTTP — verify ownership) --------
     @Override
     public TransactionStatusResponseDto queryTransactionStatus(String checkoutRequestId) throws Exception {
-        log.info("Querying status for CheckoutRequestID: {}", checkoutRequestId);
+        UUID orgId = TenantContext.require();
+
+        // Ensure the caller owns this transaction before talking to Safaricom
+        transactionRepository.findByOrgIdAndCheckoutRequestId(orgId.toString(), checkoutRequestId)
+                .orElseThrow(() -> new IllegalArgumentException(
+                        "Transaction not found for CheckoutRequestID: " + checkoutRequestId));
 
         String token = getOAuthToken();
         String url = darajaConfig.getBaseUrl() + "/mpesa/stkpushquery/v1/query";
@@ -211,23 +216,26 @@ public class DarajaServiceImpl implements DarajaService {
         return objectMapper.treeToValue(result, TransactionStatusResponseDto.class);
     }
 
-    // -------- GET TRANSACTION BY ID --------
+    // -------- GET TRANSACTION BY ID (HTTP — org-scoped) --------
     @Override
     public TransactionResponseDto getTransactionById(String id) throws Exception {
-        Transaction tx = transactionRepository.findById(id)
+        UUID orgId = TenantContext.require();
+        Transaction tx = transactionRepository.findByIdAndOrgId(id, orgId.toString())
                 .orElseThrow(() -> new IllegalArgumentException("Transaction not found with ID: " + id));
         return mapToDto(tx);
     }
 
     @Override
     public List<TransactionResponseDto> getTransactionsByTenant(String tenantId) {
-        return transactionRepository.findByTenantId(tenantId)
+        UUID orgId = TenantContext.require();
+        return transactionRepository.findByOrgIdAndTenantId(orgId.toString(), tenantId)
                 .stream().map(this::mapToDto).collect(Collectors.toList());
     }
 
     @Override
     public List<TransactionResponseDto> getTransactionsByLease(String leaseId) {
-        return transactionRepository.findByLeaseId(leaseId)
+        UUID orgId = TenantContext.require();
+        return transactionRepository.findByOrgIdAndLeaseId(orgId.toString(), leaseId)
                 .stream().map(this::mapToDto).collect(Collectors.toList());
     }
 

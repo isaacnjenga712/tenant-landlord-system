@@ -12,11 +12,11 @@ export const options = {
       executor: 'ramping-vus',
       startVUs: 0,
       stages: [
-        { duration: '2m',  target: 50 },
-        { duration: '10m', target: 50 },
-        { duration: '1m',  target: 0  },
+        { duration: '2m',  target: 1000 },
+        { duration: '10m', target: 1000 },
+        { duration: '2m',  target: 0    },
       ],
-      gracefulRampDown: '30s',
+      gracefulRampDown: '60s',
     },
   },
   thresholds: {

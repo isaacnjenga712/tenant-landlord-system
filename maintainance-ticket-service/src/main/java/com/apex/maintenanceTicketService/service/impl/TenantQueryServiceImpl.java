@@ -6,6 +6,7 @@ import com.apex.maintenanceTicketService.mapper.TenantMapper;
 import com.apex.maintenanceTicketService.model.Tenant;
 import com.apex.maintenanceTicketService.repository.TenantRepository;
 import com.apex.maintenanceTicketService.service.TenantQueryService;
+import com.platform.common.tenant.TenantContext;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -26,7 +27,10 @@ public class TenantQueryServiceImpl implements TenantQueryService {
     @Override
     @Transactional(readOnly = true)
     public List<TenantResponse> getAllTenants() {
+        UUID orgId = TenantContext.require();
+        // Uses the compound index — list of all tenants in the org
         return tenantRepository.findAll().stream()
+                .filter(t -> orgId.equals(t.getOrgId()))
                 .map(mapper::toResponse)
                 .collect(Collectors.toList());
     }
@@ -34,7 +38,8 @@ public class TenantQueryServiceImpl implements TenantQueryService {
     @Override
     @Transactional(readOnly = true)
     public TenantResponse getTenantById(UUID id) {
-        Tenant tenant = tenantRepository.findById(id)
+        UUID orgId = TenantContext.require();
+        Tenant tenant = tenantRepository.findByIdAndOrgId(id, orgId)
                 .orElseThrow(() -> new ResourceNotFoundException("Tenant not found with id: " + id));
         return mapper.toResponse(tenant);
     }
@@ -42,7 +47,8 @@ public class TenantQueryServiceImpl implements TenantQueryService {
     @Override
     @Transactional(readOnly = true)
     public TenantResponse getTenantByEmail(String email) {
-        Tenant tenant = tenantRepository.findByEmail(email)
+        UUID orgId = TenantContext.require();
+        Tenant tenant = tenantRepository.findByOrgIdAndEmail(orgId, email)
                 .orElseThrow(() -> new ResourceNotFoundException("Tenant not found with email: " + email));
         return mapper.toResponse(tenant);
     }

@@ -18,11 +18,11 @@ public class TicketResolvedEvent implements Serializable {
     private UUID unitId;
     private UUID tenantId;
     private UUID landlordId;
+    private UUID organizationId;   // NEW
     private String title;
     private UUID correlationId;
     private String eventType;
 
-    /** Legacy constructor (pre-landlordId) — kept for back-compat. */
     public TicketResolvedEvent(UUID ticketId, UUID unitId, UUID tenantId,
                                String title, UUID correlationId) {
         this.ticketId = ticketId;

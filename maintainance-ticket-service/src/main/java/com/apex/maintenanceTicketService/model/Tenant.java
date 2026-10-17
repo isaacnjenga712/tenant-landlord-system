@@ -21,10 +21,13 @@ public class Tenant {
     @GeneratedValue(strategy = GenerationType.UUID)
     private UUID id;
 
+    @Column(name = "org_id", columnDefinition = "UUID", nullable = false, updatable = false)
+    private UUID orgId;
+
     @Column(nullable = false)
     private String name;
 
-    @Column(unique = true, nullable = false)
+    @Column(nullable = false)
     private String email;
 
     private String phone;
@@ -34,6 +37,9 @@ public class Tenant {
 
     @PrePersist
     protected void onCreate() {
+        if (orgId == null) {
+            throw new IllegalStateException("org_id is required — set TenantContext before saving");
+        }
         createdAt = LocalDateTime.now();
         if (id == null) {
             id = UUID.randomUUID();

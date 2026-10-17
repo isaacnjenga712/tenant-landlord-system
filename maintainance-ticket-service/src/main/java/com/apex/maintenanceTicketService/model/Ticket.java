@@ -23,6 +23,9 @@ public class Ticket {
     @GeneratedValue(strategy = GenerationType.UUID)
     private UUID id;
 
+    @Column(name = "org_id", columnDefinition = "UUID", nullable = false, updatable = false)
+    private UUID orgId;
+
     @Column(name = "unit_id", nullable = false, columnDefinition = "UUID")
     private UUID unitId;
 
@@ -54,6 +57,9 @@ public class Ticket {
 
     @PrePersist
     protected void onCreate() {
+        if (orgId == null) {
+            throw new IllegalStateException("org_id is required — set TenantContext before saving");
+        }
         createdAt = LocalDateTime.now();
         updatedAt = LocalDateTime.now();
         if (id == null) {

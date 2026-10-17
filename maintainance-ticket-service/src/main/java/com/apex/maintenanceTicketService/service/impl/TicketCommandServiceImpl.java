@@ -12,6 +12,7 @@ import com.apex.maintenanceTicketService.repository.TicketRepository;
 import com.apex.maintenanceTicketService.service.TicketCommandService;
 import com.platform.common.events.maintenance.TicketCreatedEvent;
 import com.platform.common.events.maintenance.TicketResolvedEvent;
+import com.platform.common.tenant.TenantContext;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -34,6 +35,8 @@ public class TicketCommandServiceImpl implements TicketCommandService {
                                        String userIdHeader,
                                        String userRole,
                                        String tenantHeader) {
+        UUID orgId = TenantContext.require();
+
         if (userIdHeader == null || userIdHeader.isBlank()) {
             throw new IllegalArgumentException("Missing X-User-Id header");
         }
@@ -52,41 +55,41 @@ public class TicketCommandServiceImpl implements TicketCommandService {
             landlordId = callerId;
             tenantId = request.getTenantId();
             if (tenantId == null) {
-                throw new IllegalArgumentException(
-                        "tenantId is required when a landlord creates a ticket");
+                throw new IllegalArgumentException("tenantId is required when a landlord creates a ticket");
             }
         } else {
-            // Default: TENANT creating their own ticket
             tenantId = callerId;
             landlordId = request.getLandlordId();
             if (landlordId == null) {
-                throw new IllegalArgumentException(
-                        "landlordId is required when a tenant creates a ticket");
+                throw new IllegalArgumentException("landlordId is required when a tenant creates a ticket");
             }
         }
 
         Ticket ticket = mapper.toEntity(request, tenantId, landlordId);
+        ticket.setOrgId(orgId);
         Ticket saved = ticketRepository.save(ticket);
 
         TicketCreatedEvent event = new TicketCreatedEvent();
         event.setTicketId(saved.getId());
         event.setUnitId(saved.getUnitId());
         event.setTenantId(saved.getTenantId());
-        event.setLandlordId(saved.getLandlordId());   // ← added
+        event.setLandlordId(saved.getLandlordId());
+        event.setOrganizationId(orgId);           // ← NEW: carries org to notification-engine
         event.setTitle(saved.getTitle());
         event.setPriority(saved.getPriority().name());
         event.setCorrelationId(UUID.randomUUID());
         event.setEventType("maintenance.ticket.created");
         eventPublisher.publishTicketCreated(event, saved.getTenantId());
-        log.info("Ticket created: {} by {} tenantId={} landlordId={}",
-                saved.getId(), userRole, tenantId, landlordId);
+        log.info("Ticket created: {} by {} tenantId={} landlordId={} org={}",
+                saved.getId(), userRole, tenantId, landlordId, orgId);
         return mapper.toResponse(saved);
     }
 
     @Override
     @Transactional
     public TicketResponse updateTicket(UUID id, TicketUpdateRequest request) {
-        Ticket ticket = findOrThrow(id);
+        UUID orgId = TenantContext.require();
+        Ticket ticket = findOrThrow(id, orgId);
         mapper.updateEntity(ticket, request);
         Ticket updated = ticketRepository.save(ticket);
         log.info("Ticket updated: {}", updated.getId());
@@ -96,7 +99,8 @@ public class TicketCommandServiceImpl implements TicketCommandService {
     @Override
     @Transactional
     public TicketResponse updateTicketStatus(UUID id, String status) {
-        Ticket ticket = findOrThrow(id);
+        UUID orgId = TenantContext.require();
+        Ticket ticket = findOrThrow(id, orgId);
         try {
             ticket.setStatus(TicketStatus.valueOf(status.toUpperCase()));
         } catch (IllegalArgumentException e) {
@@ -110,27 +114,29 @@ public class TicketCommandServiceImpl implements TicketCommandService {
             event.setTicketId(updated.getId());
             event.setUnitId(updated.getUnitId());
             event.setTenantId(updated.getTenantId());
-            event.setLandlordId(updated.getLandlordId());   // ← added
+            event.setLandlordId(updated.getLandlordId());
+            event.setOrganizationId(orgId);        // ← NEW
             event.setTitle(updated.getTitle());
             event.setCorrelationId(UUID.randomUUID());
             event.setEventType("maintenance.ticket.resolved");
             eventPublisher.publishTicketResolved(event, updated.getTenantId());
         }
 
-        log.info("Ticket status updated: {} → {}", updated.getId(), status);
+        log.info("Ticket status updated: {} → {} org={}", updated.getId(), status, orgId);
         return mapper.toResponse(updated);
     }
 
     @Override
     @Transactional
     public void deleteTicket(UUID id) {
-        Ticket ticket = findOrThrow(id);
+        UUID orgId = TenantContext.require();
+        Ticket ticket = findOrThrow(id, orgId);
         ticketRepository.delete(ticket);
         log.info("Ticket deleted: {}", id);
     }
 
-    private Ticket findOrThrow(UUID id) {
-        return ticketRepository.findById(id)
+    private Ticket findOrThrow(UUID id, UUID orgId) {
+        return ticketRepository.findByIdAndOrgId(id, orgId)
                 .orElseThrow(() -> new ResourceNotFoundException("Ticket not found with id: " + id));
     }
 }

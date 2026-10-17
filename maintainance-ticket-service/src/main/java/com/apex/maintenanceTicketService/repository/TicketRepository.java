@@ -6,21 +6,26 @@ import org.springframework.data.jpa.repository.JpaRepository;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 public interface TicketRepository extends JpaRepository<Ticket, UUID> {
 
-    List<Ticket> findByUnitId(UUID unitId);
+    // ---- org-scoped lookups ----
 
-    List<Ticket> findByTenantId(UUID tenantId);
+    Optional<Ticket> findByIdAndOrgId(UUID id, UUID orgId);
 
-    List<Ticket> findByLandlordId(UUID landlordId);
+    List<Ticket> findByOrgId(UUID orgId);
 
-    List<Ticket> findByStatus(TicketStatus status);
+    List<Ticket> findByOrgIdAndUnitId(UUID orgId, UUID unitId);
 
-    // ---------- KPI counts for admin dashboard ----------
+    List<Ticket> findByOrgIdAndTenantId(UUID orgId, UUID tenantId);
 
-    long countByStatus(TicketStatus status);
+    List<Ticket> findByOrgIdAndLandlordId(UUID orgId, UUID landlordId);
 
-    long countByStatusAndUpdatedAtAfter(TicketStatus status, LocalDateTime after);
+    List<Ticket> findByOrgIdAndStatus(UUID orgId, TicketStatus status);
+
+    long countByOrgIdAndStatus(UUID orgId, TicketStatus status);
+
+    long countByOrgIdAndStatusAndUpdatedAtAfter(UUID orgId, TicketStatus status, LocalDateTime after);
 }

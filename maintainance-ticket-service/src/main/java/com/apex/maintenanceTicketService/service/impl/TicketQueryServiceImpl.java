@@ -6,6 +6,7 @@ import com.apex.maintenanceTicketService.mapper.TicketMapper;
 import com.apex.maintenanceTicketService.model.enums.TicketStatus;
 import com.apex.maintenanceTicketService.repository.TicketRepository;
 import com.apex.maintenanceTicketService.service.TicketQueryService;
+import com.platform.common.tenant.TenantContext;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -26,9 +27,10 @@ public class TicketQueryServiceImpl implements TicketQueryService {
     @Override
     @Transactional(readOnly = true)
     public List<TicketResponse> getAllTickets(String userIdHeader, String userRole) {
-        // Admin sees all
+        UUID orgId = TenantContext.require();
+
         if ("ADMIN".equalsIgnoreCase(userRole)) {
-            return ticketRepository.findAll().stream()
+            return ticketRepository.findByOrgId(orgId).stream()
                     .map(mapper::toResponse)
                     .collect(Collectors.toList());
         }
@@ -46,13 +48,12 @@ public class TicketQueryServiceImpl implements TicketQueryService {
         }
 
         if ("LANDLORD".equalsIgnoreCase(userRole)) {
-            return ticketRepository.findByLandlordId(callerId).stream()
+            return ticketRepository.findByOrgIdAndLandlordId(orgId, callerId).stream()
                     .map(mapper::toResponse)
                     .collect(Collectors.toList());
         }
 
-        // TENANT (default)
-        return ticketRepository.findByTenantId(callerId).stream()
+        return ticketRepository.findByOrgIdAndTenantId(orgId, callerId).stream()
                 .map(mapper::toResponse)
                 .collect(Collectors.toList());
     }
@@ -60,7 +61,8 @@ public class TicketQueryServiceImpl implements TicketQueryService {
     @Override
     @Transactional(readOnly = true)
     public TicketResponse getTicketById(UUID id) {
-        return ticketRepository.findById(id)
+        UUID orgId = TenantContext.require();
+        return ticketRepository.findByIdAndOrgId(id, orgId)
                 .map(mapper::toResponse)
                 .orElseThrow(() -> new ResourceNotFoundException("Ticket not found with id: " + id));
     }
@@ -68,7 +70,8 @@ public class TicketQueryServiceImpl implements TicketQueryService {
     @Override
     @Transactional(readOnly = true)
     public List<TicketResponse> getTicketsByUnit(UUID unitId) {
-        return ticketRepository.findByUnitId(unitId).stream()
+        UUID orgId = TenantContext.require();
+        return ticketRepository.findByOrgIdAndUnitId(orgId, unitId).stream()
                 .map(mapper::toResponse)
                 .collect(Collectors.toList());
     }
@@ -76,7 +79,8 @@ public class TicketQueryServiceImpl implements TicketQueryService {
     @Override
     @Transactional(readOnly = true)
     public List<TicketResponse> getTicketsByTenant(UUID tenantId) {
-        return ticketRepository.findByTenantId(tenantId).stream()
+        UUID orgId = TenantContext.require();
+        return ticketRepository.findByOrgIdAndTenantId(orgId, tenantId).stream()
                 .map(mapper::toResponse)
                 .collect(Collectors.toList());
     }
@@ -84,7 +88,8 @@ public class TicketQueryServiceImpl implements TicketQueryService {
     @Override
     @Transactional(readOnly = true)
     public List<TicketResponse> getTicketsByLandlord(UUID landlordId) {
-        return ticketRepository.findByLandlordId(landlordId).stream()
+        UUID orgId = TenantContext.require();
+        return ticketRepository.findByOrgIdAndLandlordId(orgId, landlordId).stream()
                 .map(mapper::toResponse)
                 .collect(Collectors.toList());
     }
@@ -92,9 +97,10 @@ public class TicketQueryServiceImpl implements TicketQueryService {
     @Override
     @Transactional(readOnly = true)
     public List<TicketResponse> getTicketsByStatus(String status) {
+        UUID orgId = TenantContext.require();
         try {
             TicketStatus enumStatus = TicketStatus.valueOf(status.toUpperCase());
-            return ticketRepository.findByStatus(enumStatus).stream()
+            return ticketRepository.findByOrgIdAndStatus(orgId, enumStatus).stream()
                     .map(mapper::toResponse)
                     .collect(Collectors.toList());
         } catch (IllegalArgumentException e) {

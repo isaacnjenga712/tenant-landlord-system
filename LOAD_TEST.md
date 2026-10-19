@@ -57,7 +57,7 @@ Full scenarios and thresholds: [`scripts/load-test.js`](./scripts/load-test.js).
 | Checks passed | 100% (514,013 / 514,013) | 100% | ✅ |
 | Data transferred | 1.0 GB | — | — |
 
-**The p95/p99 threshold failure at 1,000 VUs is the expected result.** We ran until we found the knee in the curve, not until the system broke. That's the point of load testing to saturation.
+**The p95/p99 threshold failure at 1,000 VUs is the expected result.** I ran until I found the knee in the curve, not until the system broke. That's the point of load testing to saturation.
 
 ## What the scaling curve shows
 

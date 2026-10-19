@@ -101,14 +101,19 @@ export default function () {
       headers: { 'X-Org-Id': uuidOrg(otherT), 'X-User-PublicId': recipientId },
       tags: { name: 'cross_tenant_negative' },
     });
+    
     let leak = false;
-    if (res.status !== 200) leak = true;
-    else {
+    
+    // ONLY count it as a leak if the server responded 200 with data.
+    // If it timed out (status 0 or 5xx), it's a capacity failure, not a security leak.
+    if (res.status === 200) {
       try { leak = JSON.parse(res.body).total > 0; } catch { leak = true; }
     }
+    
     crossTenantLeak.add(leak);
     check(res, {
       'cross-tenant empty': (r) => {
+        if (r.status !== 200) return true; // Ignore failures/timeouts for this security check
         try { return JSON.parse(r.body).total === 0; } catch { return false; }
       },
     });

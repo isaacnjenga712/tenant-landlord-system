@@ -1,0 +1,12 @@
+server:
+  tomcat:
+    threads:
+      max: 400
+      min-spare: 40
+    accept-count: 1000
+    max-connections: 10000
+
+spring:
+  data:
+    mongodb:
+      uri: mongodb://localhost:27018/notification_db?uuidRepresentation=standard&maxPoolSize=200&minPoolSize=20&maxIdleTimeMS=30000

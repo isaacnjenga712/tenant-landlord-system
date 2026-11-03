@@ -172,3 +172,4 @@ tenant-collection/
 
 *.log
 
+docker-compose.override.yml

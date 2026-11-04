@@ -173,3 +173,4 @@ tenant-collection/
 *.log
 
 docker-compose.override.yml
+leak-control-summary.json

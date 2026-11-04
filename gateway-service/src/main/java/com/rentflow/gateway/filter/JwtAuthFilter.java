@@ -3,6 +3,7 @@ package com.rentflow.gateway.filter;
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.security.Keys;
+import jakarta.annotation.PostConstruct;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
@@ -46,14 +47,29 @@ public class JwtAuthFilter implements GlobalFilter, Ordered {
     @Value("${jwt.access.secret}")
     private String secret;
 
+    // ── FIX: derive the key ONCE at startup, not per-request ──────────────
+    private SecretKey signingKey;
+
+    @PostConstruct
+    public void init() {
+        if (secret == null || secret.isBlank()) {
+            throw new IllegalStateException(
+                    "jwt.access.secret is not configured — gateway cannot verify tokens");
+        }
+        this.signingKey = Keys.hmacShaKeyFor(secret.getBytes(StandardCharsets.UTF_8));
+        log.info("JwtAuthFilter initialized: secretLength={}, keyAlgorithm={}",
+                secret.length(), signingKey.getAlgorithm());
+    }
+
     @Override
     public Mono<Void> filter(ServerWebExchange exchange, GatewayFilterChain chain) {
         String path = exchange.getRequest().getPath().value();
 
-        // Debug: log the secret being used (first 20 chars) once per request
-        log.debug("### JwtAuthFilter.secret prefix=[{}] length={}",
-                secret == null ? "NULL" : secret.substring(0, Math.min(20, secret.length())),
-                secret == null ? 0 : secret.length());
+        // Guarded debug log — do not compute substring when DEBUG is off
+        if (log.isDebugEnabled()) {
+            log.debug("### JwtAuthFilter path={} secretLength={}",
+                    path, secret == null ? 0 : secret.length());
+        }
 
         // 1. ALWAYS sanitize first — no matter the path, no matter what happens next.
         ServerHttpRequest sanitized = exchange.getRequest().mutate()
@@ -63,6 +79,9 @@ public class JwtAuthFilter implements GlobalFilter, Ordered {
 
         // 2. Public paths get the sanitized request and nothing else.
         if (PUBLIC_PATHS.stream().anyMatch(path::startsWith)) {
+            if (log.isDebugEnabled()) {
+                log.debug("### JwtAuthFilter PUBLIC path={} — skipping JWT verification", path);
+            }
             return chain.filter(sanitizedExchange);
         }
 
@@ -77,19 +96,21 @@ public class JwtAuthFilter implements GlobalFilter, Ordered {
         try {
             String token = authHeader.substring(7);
 
-            // Debug: log token header + length
-            log.debug("### Token length={} first20={}",
-                    token.length(), token.substring(0, Math.min(20, token.length())));
+            if (log.isDebugEnabled()) {
+                log.debug("### JwtAuthFilter token length={}", token.length());
+            }
 
-            SecretKey key = Keys.hmacShaKeyFor(secret.getBytes(StandardCharsets.UTF_8));
+            // ── FIX: use the pre-built signingKey ─────────────────────────
             Claims claims = Jwts.parser()
-                    .verifyWith(key)
+                    .verifyWith(signingKey)
                     .build()
                     .parseSignedClaims(token)
                     .getPayload();
 
-            log.debug("### JWT verified OK. sub={} org_id={} role={}",
-                    claims.getSubject(), claims.get("org_id"), claims.get("role"));
+            if (log.isDebugEnabled()) {
+                log.debug("### JWT verified OK. sub={} org_id={} role={}",
+                        claims.getSubject(), claims.get("org_id"), claims.get("role"));
+            }
 
             Object role = claims.get("role");
 
@@ -123,20 +144,20 @@ public class JwtAuthFilter implements GlobalFilter, Ordered {
                 mutated.header("X-Org-Id", orgId);
             }
 
-            log.debug("### Forwarding to downstream: X-Org-Id={} X-User-Role={} path={}",
-                    orgId, role, path);
+            if (log.isDebugEnabled()) {
+                log.debug("### Forwarding to downstream: X-Org-Id={} X-User-Role={} path={}",
+                        orgId, role, path);
+            }
 
             return chain.filter(exchange.mutate().request(mutated.build()).build());
 
         } catch (Exception e) {
             // ---- Detailed failure log ----
-            log.error("### JWT AUTH FAILED for path {}", path);
-            log.error("###   Exception: {}", e.getClass().getName());
-            log.error("###   Message:   {}", e.getMessage());
-            log.error("###   Secret prefix=[{}] length={}",
-                    secret == null ? "NULL" : secret.substring(0, Math.min(20, secret.length())),
-                    secret == null ? 0 : secret.length());
-            log.error("###   Stack trace:", e);
+            log.error("### JWT AUTH FAILED for path {}: {} - {}",
+                    path, e.getClass().getName(), e.getMessage());
+            if (log.isDebugEnabled()) {
+                log.debug("###   Stack trace:", e);
+            }
 
             exchange.getResponse().setStatusCode(HttpStatus.UNAUTHORIZED);
             return exchange.getResponse().setComplete();

@@ -43,7 +43,7 @@ export const options = {
 };
 
 export function setup() {
-  const loginUrl = `${AUTH_BASE}${LOGIN_PATH}`;  // ← changed from BASE
+  const loginUrl = `${AUTH_BASE}${LOGIN_PATH}`;
   const body = JSON.stringify({ email: LOGIN_EMAIL, password: LOGIN_PASSWORD });
 
   const res = http.post(loginUrl, body, {
@@ -87,6 +87,15 @@ function headers(token, orgId, recipientId) {
   return {
     'Authorization': `Bearer ${token}`,
     'Content-Type': 'application/json',
+    'X-Org-Id': orgId,
+    'X-User-PublicId': recipientId,
+  };
+}
+
+function patchHeaders(token, orgId, recipientId) {
+  return {
+    'Authorization': `Bearer ${token}`,
+    // NO Content-Type — the PATCH has no body
     'X-Org-Id': orgId,
     'X-User-PublicId': recipientId,
   };
@@ -136,20 +145,20 @@ export default function (data) {
     });
 
     let result;
-if (res.status === 0) {
-  result = 'INCONCLUSIVE';  // ← timeout
-} else if (res.status === 200) {
-  try {
-    const total = JSON.parse(res.body).total;
-    result = total > 0 ? 'LEAK' : 'PASS';
-  } catch {
-    result = 'INCONCLUSIVE';  // ← unparseable, but not a proven leak
-  }
-} else if (res.status === 404 || res.status === 403 || res.status === 400) {
-  result = 'PASS';
-} else {
-  result = 'INCONCLUSIVE';
-}
+    if (res.status === 0) {
+      result = 'INCONCLUSIVE';  // ← timeout
+    } else if (res.status === 200) {
+      try {
+        const total = JSON.parse(res.body).total;
+        result = total > 0 ? 'LEAK' : 'PASS';
+      } catch {
+        result = 'INCONCLUSIVE';  // ← unparseable, but not a proven leak
+      }
+    } else if (res.status === 404 || res.status === 403 || res.status === 400) {
+      result = 'PASS';
+    } else {
+      result = 'INCONCLUSIVE';
+    }
 
     crossTenantLeak.add(result === 'LEAK');
     crossTenantInconclusive.add(result === 'INCONCLUSIVE');
@@ -162,7 +171,13 @@ if (res.status === 0) {
     return;
   }
 
-  const listRes = http.get(`${BASE}/api/v1/notifications/inbox?page=0&size=5`, {
+  // ---- Write path ----
+  // FIX: distribute writes across many notifications to avoid
+  // single-document contention. Without this, all VUs PATCH the same
+  // first notification (items[0].id), causing MongoDB serialization and
+  // timeouts at high VU counts.
+  const writePage = Math.floor(Math.random() * 20);
+  const listRes = http.get(`${BASE}/api/v1/notifications/inbox?page=${writePage}&size=5`, {
     headers: headers(token, orgId, recipientId),
     tags: { name: 'fetch_for_write' },
   });
@@ -173,10 +188,13 @@ if (res.status === 0) {
     const body = JSON.parse(listRes.body);
     if (!body.items || body.items.length === 0) { sleep(0.1); return; }
 
-    const id = body.items[0].id;
+    // FIX: pick a random item instead of always items[0]
+    const writeItems = body.items;
+    const writeItem = writeItems[Math.floor(Math.random() * writeItems.length)];
+    const id = writeItem.id;
 
-    http.patch(`${BASE}/api/v1/notifications/inbox/${id}/read`, null, {
-      headers: headers(token, orgId, recipientId),
+    http.patch(`${BASE}/api/v1/notifications/inbox/${id}/read`, undefined, {
+      headers: patchHeaders(token, orgId, recipientId),
       tags: { name: 'mark_read' },
     });
 
@@ -187,18 +205,21 @@ if (res.status === 0) {
 
     const evilRes = http.patch(
       `${BASE}/api/v1/notifications/inbox/${id}/read`,
-      null,
+      undefined,
       {
-        headers: headers(token, uuidOrg(otherT), recipientId),
+        headers: patchHeaders(token, uuidOrg(otherT), recipientId),
         tags: { name: 'cross_tenant_write' },
       }
     );
 
+    console.log(`PATCH status=${evilRes.status} error=${evilRes.error} error_code=${evilRes.error_code}
+    timings=${JSON.stringify(evilRes.timings)} body=${evilRes.body?.slice(0, 100)}`);
+
     let writeResult;
-if (evilRes.status === 0) writeResult = 'INCONCLUSIVE';
-else if (evilRes.status >= 200 && evilRes.status < 300) writeResult = 'LEAK';
-else if ([400, 403, 404].includes(evilRes.status)) writeResult = 'PASS';
-else writeResult = 'INCONCLUSIVE';
+    if (evilRes.status === 0) writeResult = 'INCONCLUSIVE';
+    else if (evilRes.status >= 200 && evilRes.status < 300) writeResult = 'LEAK';
+    else if ([400, 403, 404].includes(evilRes.status)) writeResult = 'PASS';
+    else writeResult = 'INCONCLUSIVE';
 
     crossTenantWriteLeak.add(writeResult === 'LEAK');
     crossTenantInconclusive.add(writeResult === 'INCONCLUSIVE');

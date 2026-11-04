@@ -31,12 +31,13 @@ public class NotificationInboxController {
         return Map.of("count", inboxService.unreadCount(userPublicId));
     }
 
-    @PatchMapping("/{id}/read")
-    public ResponseEntity<Void> markRead(@RequestHeader(USER_HEADER) UUID userPublicId,
-                                         @PathVariable String id) {
-        inboxService.markRead(userPublicId, id);
-        return ResponseEntity.noContent().build();
-    }
+   @PatchMapping("/{id}/read")
+public ResponseEntity<Map<String, Object>> markRead(
+        @RequestHeader(USER_HEADER) UUID userPublicId,
+        @PathVariable String id) {
+    inboxService.markRead(userPublicId, id);
+    return ResponseEntity.ok(Map.of("ok", true, "id", id));
+}
 
     @PostMapping("/read-all")
     public Map<String, Long> markAllRead(@RequestHeader(USER_HEADER) UUID userPublicId) {

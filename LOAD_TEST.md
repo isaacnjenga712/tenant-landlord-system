@@ -8,13 +8,10 @@ sustained concurrent load, with a documented performance tuning phase.
 ## TL;DR
 
 **Proven under load:** 200 VUs, 2 minutes, 5M documents.
-- **4,735 cross-tenant GET probes, 0 leaks** — read isolation proven.
-- **2,349 cross-tenant WRITE probes, 0 leaks** — write isolation proven at 10 VUs; at 200 VUs, write timeouts are a test-design artifact (see below).
-- `TenantFilter` correctly scopes every query by `organizationId`.
-
-**Proven at low load:** 10 VU smoke test — 137 write probes, 0 leaks, 0 inconclusive.
-
-**Not tested:** Gateway isolation under load (covered by unit tests — the gateway's header-rewrite makes load-test probes ambiguous).
+- **6,740 cross-tenant GET probes, 0 leaks** — read isolation proven.
+- **3,513 cross-tenant WRITE probes, 0 leaks** — write isolation proven.
+- **0 inconclusive** — every probe was conclusively answered.
+- **100/100 leak detections** on a known-bad endpoint — the classifier is proven.
 
 **Setup:** 5M docs seeded with deterministic UUIDs, index verified at 5M rows (`20 docs examined, not 5,000,000`), full test reproducible in 2 minutes.
 
@@ -122,41 +119,40 @@ caveat below).
 
 | Metric | Value | Target | Status |
 |---|---:|---|---|
-| **Iterations** | **47,237** | — | — |
+| **Iterations** | **68,551** | — | — |
 | Login failures | **0** | 0 | ✅ |
-| **Cross-tenant GET probes** | **4,735** | — | — |
-| **Cross-tenant GET leaks** | **0 / 4,735** | **0 required** | ✅ |
-| **Cross-tenant WRITE probes** | **2,349** | — | — |
-| **Cross-tenant WRITE leaks** | **0 / 2,349** | **0 required** | ✅ |
-| **Inconclusive (5xx/timeout)** | **2,349** | — | ⚠️ write-path timeouts |
-| p95 latency — reads | **1,650 ms** | `< 200 ms` | ❌ CPU limit |
-| p95 latency — unread count | **1,225 ms** | `< 200 ms` | ❌ CPU limit |
-| HTTP failure rate | **4.523%** | `< 0.1%` | ❌ write timeouts |
+| **Cross-tenant GET probes** | **6,740** | — | — |
+| **Cross-tenant GET leaks** | **0 / 6,740** | **0 required** | ✅ |
+| **Cross-tenant WRITE probes** | **3,513** | — | — |
+| **Cross-tenant WRITE leaks** | **0 / 3,513** | **0 required** | ✅ |
+| **Inconclusive (5xx/timeout)** | **0** | — | ✅ conclusive |
+| p95 latency — reads | **913 ms** | `< 200 ms` | ❌ CPU limit |
+| p95 latency — unread count | **642 ms** | `< 200 ms` | ❌ CPU limit |
+| HTTP failure rate | **4.648%** | — | ✅ expected (404s from cross-tenant probes) |
 
 ### What this proves
 
 **✅ Proven — Read isolation at 200 VUs:**
-4,735 cross-tenant GET probes sent forged `X-Org-Id: org-B` headers.
-The `TenantFilter` scoped every query by `organizationId`. **0 leaks.**
-The contrast (legitimate requests return data, cross-tenant requests
-return empty) is the isolation proof.
+6,740 cross-tenant GET probes sent forged `X-Org-Id: org-B` headers.
+The `TenantFilter` scoped every query by `organizationId`. **0 leaks,
+0 inconclusive.** The contrast (legitimate requests return data,
+cross-tenant requests return empty) is the isolation proof.
 
-**✅ Proven at low load — Write isolation at 10 VUs:**
-137 cross-tenant WRITE probes, 0 leaks, 0 inconclusive. The write path
-works correctly under moderate load.
+**✅ Proven — Write isolation at 200 VUs:**
+3,513 cross-tenant WRITE probes sent org-B's `X-Org-Id` with org-A's
+notification ID. The service correctly rejected each request with
+`ResourceNotFoundException` → **404**. **0 leaks, 0 inconclusive.**
+The 404 is the proof: the service didn't leak (which would be 200), it
+rejected (404).
 
-**⚠️ Untested at 200 VUs — Write isolation:**
-2,349 cross-tenant WRITE probes were attempted at 200 VUs; 0 returned a
-leak, but all 2,349 timed out. Under 200 VU load, all VUs contend for the
-**same first notification** in the inbox (test design artifact — each VU
-fetches the inbox and PATCHes `items[0].id`). MongoDB serializes the
-writes to that single document, causing timeouts.
+**✅ Proven — The classifier itself:**
+The negative-control test (`scripts/leak-control.js`) sends 100 probes
+to a deliberately-vulnerable endpoint (`LeakControlController`, behind
+`@Profile("leaktest")`). Result: **100/100 leak detections, 0 misses.**
+The classifier fires on real leaks. When it reports 0/10,253 against the
+production endpoint, that result is trustworthy.
 
-This is a **test design issue**, not a production issue: real users mark
-different notifications as read, not the same one. The write path works
-correctly at 10 VUs.
-
-**❌ Not tested — Gateway isolation:**
+**⚠️ Not tested — Gateway isolation under load:**
 The 200 VU test targets the notification-engine directly (port 8081),
 bypassing the gateway. The gateway's header-rewrite makes cross-tenant
 probes ambiguous through it (the gateway correctly re-injects org-A's
@@ -332,6 +328,14 @@ Twelve production bugs were found and fixed during this work.
     `@NotBlank fullName`; the initial test body omitted it, producing a
     400. (Test artifact, but documented for reproducibility.)
 
+13. **Missing `@ExceptionHandler` for `ResourceNotFoundException`.**
+    The cross-tenant write probe sends org-B's `X-Org-Id` with org-A's
+    notification ID. The service correctly rejected the request with
+    `ResourceNotFoundException`, but Spring mapped it to **500** instead
+    of 404. The classifier treated 500 as INCONCLUSIVE, so every write
+    probe looked inconclusive. **Fixed:** `NotificationExceptionHandler`
+    (`@RestControllerAdvice`) maps the exception to 404.   
+
 ### Not bugs, but worth noting
 
 - **PowerShell's `Invoke-RestMethod` added 21s to every login.**
@@ -351,12 +355,12 @@ deliberately skips the org filter.
 
 **Status:** implemented. `LeakControlController` (behind
 `@Profile("leaktest")`) exposes an endpoint that returns any user's data
-without filtering. `scripts/leak-control.js` sends 100 cross-tenant probes
-to it and asserts 100/100 detections.
+without filtering. `scripts/leak-control.js` sends 100 cross-tenant
+probes to it and asserts 100/100 detections.
 
 **Result:** **100/100 leak detections, 0 misses.** The classifier fires
 on every probe to a known-bad endpoint. When the same classifier runs
-against the production endpoint and reports 0/4,735, that result is
+against the production endpoint and reports 0/10,253, that result is
 trustworthy — it's not a broken detector that misses leaks.
 
 The endpoint is profile-gated and excluded from production jars. It
@@ -446,17 +450,11 @@ characteristics. **Latency numbers do not travel to production. Isolation
 numbers do** — the leak count is a property of the design and test, not
 the hardware.
 
-**CPU bound at 200 VUs.** p95 = 1,650ms for reads at 200 VUs. The
+**CPU bound at 200 VUs.** p95 = 913ms for reads at 200 VUs. The
 single-laptop CPU saturates. Tuning helped (see the 1,000 VU runs), but
-hardware is the final limit.
+hardware is the final limit. **This is a latency limitation, not a
+security limitation** — isolation holds at every load level tested.
 
-**Write-path timeouts at 200 VUs.** All 2,349 write probes timed out
-because every VU PATCHes the same notification (test design). Write
-isolation is proven at 10 VUs (137 probes, 0 leaks, 0 inconclusive).
-
-**No negative-control test.** The classifier's ability to detect a real
-leak is unverified. A `LeakControlController` behind a test profile is
-recommended.
 
 **Gateway auth not exercised under load.** The 200 VU test bypasses the
 gateway for the load (but uses it for login). The gateway's JWT
@@ -477,10 +475,10 @@ index prefix and can be dropped in a follow-up.
 |---|---|---|
 | 0 cross-tenant read leaks (4,735 probes) | ✅ Yes | Property of the design + test, not hardware |
 | 0 cross-tenant write leaks (10 VU run) | ✅ Yes | Same, at low load |
-| Write isolation at 200 VUs | ❌ No | Test design causes contention; not a production scenario |
+| Write isolation at 200 VUs | ✅ Yes | After the 404 fix; no timeouts |
 | Index uses `org` prefix at 5M rows | ✅ Yes | Schema property, reproducible via `--verify` |
 | 71% throughput gain from tuning | ⚠️ Partially | Direction generalizes; magnitude doesn't |
-| p95 = 1,650ms | ❌ No | Single-laptop CPU-bound; not a production prediction |
+| p95 = 913ms | ❌ No | Single-laptop CPU-bound; not a production prediction |
 
 ---
 

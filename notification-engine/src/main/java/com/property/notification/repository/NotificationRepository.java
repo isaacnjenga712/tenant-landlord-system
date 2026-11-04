@@ -8,6 +8,7 @@ import org.springframework.data.mongodb.repository.Query;
 import org.springframework.data.mongodb.repository.Update;
 
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -35,4 +36,13 @@ public interface NotificationRepository extends MongoRepository<Notification, St
 
     @Query("{ 'organizationId': null }")
     Page<Notification> findWithoutOrganization(Pageable pageable);
+
+    // ---- INTERNAL ONLY — used by LeakControlController (negative-control test) ----
+    // These methods deliberately skip organizationId scoping. They are wrapped
+    // by LeakControlController, which is @Profile("leaktest") and never loaded
+    // in production. Do not call from any HTTP-path production code.
+
+    List<Notification> findAllByRecipientPublicId(UUID recipientPublicId);
+
+    long countByRecipientPublicId(UUID recipientPublicId);
 }

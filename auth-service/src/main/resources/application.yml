@@ -7,7 +7,7 @@ spring:
   datasource:
     url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://postgres:5432/rentflow}
     username: ${SPRING_DATASOURCE_USERNAME:rentflow}
-    password: ${SPRING_DATASOURCE_PASSWORD:DB_PASSWORD}
+    password: ${SPRING_DATASOURCE_PASSWORD:?SPRING_DATASOURCE_PASSWORD is required}
     driver-class-name: org.postgresql.Driver
   jpa:
     hibernate:
@@ -53,11 +53,20 @@ eureka:
 
 jwt:
   access:
-    secret: ${JWT_ACCESS_SECRET}
+    secret: ${JWT_ACCESS_SECRET:?JWT_ACCESS_SECRET is required}
     expiration: ${JWT_ACCESS_EXPIRATION:900000}
   refresh:
-    secret: ${JWT_REFRESH_SECRET}
+    secret: ${JWT_REFRESH_SECRET:?JWT_REFRESH_SECRET is required}
     expiration: ${JWT_REFRESH_EXPIRATION:604800000}
+
+# Application-level Kafka topics — read by KafkaEventPublisher via
+# @Value("${app.kafka.topic.user-events}"). Must be in the base config
+# (application.yml) so it's available in every profile (docker, prod,
+# local). application-local.yml is NOT loaded when SPRING_PROFILES_ACTIVE=docker.
+app:
+  kafka:
+    topic:
+      user-events: ${APP_KAFKA_TOPIC_USER_EVENTS:auth.user.events}
 
 management:
   endpoints:

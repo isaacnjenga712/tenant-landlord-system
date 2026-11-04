@@ -4,6 +4,9 @@ import com.apex.auth.entity.User;
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.security.Keys;
+import jakarta.annotation.PostConstruct;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.stereotype.Service;
@@ -19,6 +22,8 @@ import java.util.function.Function;
 @Service
 public class JwtService {
 
+    private static final Logger log = LoggerFactory.getLogger(JwtService.class);
+
     @Value("${jwt.access.secret}")
     private String accessSecret;
 
@@ -31,36 +36,75 @@ public class JwtService {
     @Value("${jwt.refresh.expiration}")
     private Long refreshExpiration;
 
+    // ── FIX: derive keys ONCE at startup, not per-request ──────────────────
+    private SecretKey accessKey;
+    private SecretKey refreshKey;
+
+    @PostConstruct
+    public void init() {
+        if (accessSecret == null || accessSecret.isBlank()) {
+            throw new IllegalStateException(
+                    "jwt.access.secret is not configured — auth-service cannot sign tokens");
+        }
+        if (refreshSecret == null || refreshSecret.isBlank()) {
+            throw new IllegalStateException(
+                    "jwt.refresh.secret is not configured — auth-service cannot sign tokens");
+        }
+
+        this.accessKey = Keys.hmacShaKeyFor(accessSecret.getBytes(StandardCharsets.UTF_8));
+        this.refreshKey = Keys.hmacShaKeyFor(refreshSecret.getBytes(StandardCharsets.UTF_8));
+
+        log.info("JwtService initialized: accessKeyAlgorithm={} accessSecretLength={}, " +
+                        "refreshKeyAlgorithm={} refreshSecretLength={}",
+                accessKey.getAlgorithm(), accessSecret.length(),
+                refreshKey.getAlgorithm(), refreshSecret.length());
+    }
+
+    // ============================================================
+    // ACCESS TOKEN
+    // ============================================================
+
     public String generateAccessToken(UserDetails userDetails) {
-        return buildToken(new HashMap<>(), userDetails, accessExpiration, accessSecret);
+        return buildToken(new HashMap<>(), userDetails, accessExpiration, accessKey);
     }
 
     public String extractUsernameFromAccessToken(String token) {
-        return extractClaim(token, Claims::getSubject, accessSecret);
+        return extractClaim(token, Claims::getSubject, accessKey);
     }
 
     public boolean validateAccessToken(String token, UserDetails userDetails) {
         final String username = extractUsernameFromAccessToken(token);
-        return (username.equals(userDetails.getUsername())) && !isTokenExpired(token, accessSecret);
+        return (username.equals(userDetails.getUsername())) && !isTokenExpired(token, accessKey);
     }
 
+    // ============================================================
+    // REFRESH TOKEN
+    // ============================================================
+
     public String generateRefreshToken(UserDetails userDetails) {
-        return buildToken(new HashMap<>(), userDetails, refreshExpiration, refreshSecret);
+        return buildToken(new HashMap<>(), userDetails, refreshExpiration, refreshKey);
     }
 
     public String extractUsernameFromRefreshToken(String token) {
-        return extractClaim(token, Claims::getSubject, refreshSecret);
+        return extractClaim(token, Claims::getSubject, refreshKey);
     }
 
     public boolean validateRefreshToken(String token) {
-        return !isTokenExpired(token, refreshSecret);
+        return !isTokenExpired(token, refreshKey);
     }
 
     public Date extractExpirationFromRefreshToken(String token) {
-        return extractClaim(token, Claims::getExpiration, refreshSecret);
+        return extractClaim(token, Claims::getExpiration, refreshKey);
     }
 
-    private String buildToken(Map<String, Object> extraClaims, UserDetails userDetails, Long expiration, String secret) {
+    // ============================================================
+    // INTERNAL — now takes a pre-built SecretKey, not a raw string
+    // ============================================================
+
+    private String buildToken(Map<String, Object> extraClaims,
+                              UserDetails userDetails,
+                              Long expiration,
+                              SecretKey signingKey) {
         String publicId = null;
         String role = null;
         String orgId = null;
@@ -79,24 +123,22 @@ public class JwtService {
                 .claim("org_id", orgId)
                 .issuedAt(new Date(System.currentTimeMillis()))
                 .expiration(new Date(System.currentTimeMillis() + expiration))
-                .signWith(getSigningKey(secret))
+                .signWith(signingKey)
                 .compact();
     }
 
-    private <T> T extractClaim(String token, Function<Claims, T> claimsResolver, String secret) {
+    private <T> T extractClaim(String token,
+                               Function<Claims, T> claimsResolver,
+                               SecretKey signingKey) {
         final Claims claims = Jwts.parser()
-                .verifyWith(getSigningKey(secret))
+                .verifyWith(signingKey)
                 .build()
                 .parseSignedClaims(token)
                 .getPayload();
         return claimsResolver.apply(claims);
     }
 
-    private boolean isTokenExpired(String token, String secret) {
-        return extractClaim(token, Claims::getExpiration, secret).before(new Date());
-    }
-
-    private SecretKey getSigningKey(String secret) {
-        return Keys.hmacShaKeyFor(secret.getBytes(StandardCharsets.UTF_8));
+    private boolean isTokenExpired(String token, SecretKey signingKey) {
+        return extractClaim(token, Claims::getExpiration, signingKey).before(new Date());
     }
 }

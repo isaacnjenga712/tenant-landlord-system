@@ -100,7 +100,7 @@ management:
 
 logging:
   level:
-    com.apex.auth: ${LOG_LEVEL_AUTH:DEBUG}
+    com.apex.auth: ${LOG_LEVEL_AUTH:INFO}
     org.springframework.kafka: INFO
     org.apache.kafka: WARN
   pattern:

@@ -8,6 +8,7 @@ services:
     build:
       context: ./eureka-server
       dockerfile: Dockerfile
+      network: host
     container_name: rentflow-eureka
     ports:
       - "8761:8761"
@@ -23,6 +24,11 @@ services:
     networks:
       - rentflow-network
     restart: unless-stopped
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
 
   postgres:
     image: postgres:15-alpine
@@ -42,6 +48,11 @@ services:
       retries: 5
     networks:
       - rentflow-network
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
 
   redis:
     image: redis:7-alpine
@@ -58,6 +69,11 @@ services:
       retries: 5
     networks:
       - rentflow-network
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
 
   mongodb:
     image: mongo:7.0
@@ -76,6 +92,11 @@ services:
       retries: 5
     networks:
       - rentflow-network
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
 
   kafka:
     image: apache/kafka:3.8.0
@@ -102,6 +123,11 @@ services:
     networks:
       - rentflow-network
     restart: unless-stopped
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
 
   # ============================================================
   # OBSERVABILITY
@@ -123,6 +149,11 @@ services:
     networks:
       - rentflow-network
     restart: unless-stopped
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
 
   grafana:
     image: grafana/grafana:11.3.0
@@ -143,6 +174,11 @@ services:
     networks:
       - rentflow-network
     restart: unless-stopped
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
 
   zipkin:
     image: openzipkin/zipkin:3.4
@@ -155,6 +191,11 @@ services:
     networks:
       - rentflow-network
     restart: unless-stopped
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
 
   kafka-exporter:
     image: danielqsj/kafka-exporter:v1.8.0
@@ -169,6 +210,11 @@ services:
     networks:
       - rentflow-network
     restart: unless-stopped
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
 
   node-exporter:
     image: prom/node-exporter:v1.8.2
@@ -183,6 +229,11 @@ services:
     networks:
       - rentflow-network
     restart: unless-stopped
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
 
   # ============================================================
   # MICROSERVICES
@@ -192,6 +243,7 @@ services:
     build:
       context: .
       dockerfile: auth-service/Dockerfile
+      network: host
     container_name: rentflow-auth
     environment:
       SPRING_PROFILES_ACTIVE: "${SPRING_PROFILES_ACTIVE:-docker}"
@@ -216,11 +268,17 @@ services:
       - "8090:8080"
     networks:
       - rentflow-network
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
 
   lease-service:
     build:
       context: .
       dockerfile: lease-service/Dockerfile
+      network: host
     container_name: rentflow-lease
     environment:
       SPRING_PROFILES_ACTIVE: "${SPRING_PROFILES_ACTIVE:-docker}"
@@ -244,11 +302,17 @@ services:
       - "8085:8081"
     networks:
       - rentflow-network
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
 
   property-management-service:
     build:
       context: .
       dockerfile: property-management-service/Dockerfile
+      network: host
     container_name: rentflow-property
     environment:
       SPRING_PROFILES_ACTIVE: "${SPRING_PROFILES_ACTIVE:-docker}"
@@ -272,11 +336,17 @@ services:
       - "8082:8082"
     networks:
       - rentflow-network
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
 
   maintainance-ticket-service:
     build:
       context: .
       dockerfile: maintainance-ticket-service/Dockerfile
+      network: host
     container_name: rentflow-maintenance
     environment:
       SPRING_PROFILES_ACTIVE: "${SPRING_PROFILES_ACTIVE:-docker}"
@@ -300,11 +370,17 @@ services:
       - "8084:8084"
     networks:
       - rentflow-network
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
 
   payment-service:
     build:
       context: .
       dockerfile: payment-service/Dockerfile
+      network: host
     container_name: rentflow-payment
     environment:
       SPRING_PROFILES_ACTIVE: "${SPRING_PROFILES_ACTIVE:-docker}"
@@ -328,11 +404,17 @@ services:
       - "8086:8086"
     networks:
       - rentflow-network
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
 
   mpesa-service:
     build:
       context: ./mpesa-service
       dockerfile: Dockerfile
+      network: host
     container_name: rentflow-mpesa
     environment:
       SPRING_PROFILES_ACTIVE: "${SPRING_PROFILES_ACTIVE:-docker}"
@@ -359,11 +441,17 @@ services:
       - "8089:8088"
     networks:
       - rentflow-network
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
 
   notification-engine:
     build:
       context: .
       dockerfile: notification-engine/Dockerfile
+      network: host
     container_name: rentflow-notification
     environment:
       SPRING_PROFILES_ACTIVE: "${SPRING_PROFILES_ACTIVE:-docker}"
@@ -390,11 +478,17 @@ services:
       - "8081:8080"
     networks:
       - rentflow-network
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
 
   admin-service:
     build:
       context: ./admin-service
       dockerfile: Dockerfile
+      network: host
     container_name: rentflow-admin
     environment:
       SPRING_PROFILES_ACTIVE: "${SPRING_PROFILES_ACTIVE:-docker}"
@@ -421,6 +515,11 @@ services:
     networks:
       - rentflow-network
     restart: unless-stopped
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
 
   # ============================================================
   # GATEWAY
@@ -430,6 +529,7 @@ services:
     build:
       context: ./gateway-service
       dockerfile: Dockerfile
+      network: host
     container_name: rentflow-gateway
     environment:
       SPRING_PROFILES_ACTIVE: "${SPRING_PROFILES_ACTIVE:-docker}"
@@ -451,6 +551,11 @@ services:
       - "8080:8080"
     networks:
       - rentflow-network
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
 
   # ============================================================
   # EDGE
@@ -469,6 +574,11 @@ services:
       - auth-service
     networks:
       - rentflow-network
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
 
 volumes:
   pgdata:

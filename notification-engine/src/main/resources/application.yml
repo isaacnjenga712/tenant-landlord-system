@@ -170,7 +170,7 @@ management:
 
 logging:
   level:
-    com.property.notification: ${LOG_LEVEL_NOTIFICATION:DEBUG}
+    com.property.notification: ${LOG_LEVEL_NOTIFICATION:INFO}
     org.springframework.kafka: INFO
     org.apache.kafka: WARN
   pattern:

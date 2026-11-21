@@ -1,9 +1,8 @@
 -- V4__add_org_id_to_users.sql
 -- Introduces SaaS tenant scoping (org_id) to users.
--- Placeholder backfill for existing rows; a later migration will UPDATE
--- to real org IDs once an organizations table exists.
+-- Idempotent: safe to re-run.
 
-ALTER TABLE users ADD COLUMN org_id UUID;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS org_id UUID;
 
 UPDATE users
 SET org_id = '00000000-0000-0000-0000-000000000001'
@@ -21,4 +20,4 @@ END $$;
 
 ALTER TABLE users ALTER COLUMN org_id SET NOT NULL;
 
-CREATE INDEX idx_users_org_id ON users (org_id);
+CREATE INDEX IF NOT EXISTS idx_users_org_id ON users (org_id);

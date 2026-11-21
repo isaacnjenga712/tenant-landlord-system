@@ -8,7 +8,6 @@ services:
     build:
       context: ./eureka-server
       dockerfile: Dockerfile
-      network: host
     container_name: rentflow-eureka
     ports:
       - "8761:8761"
@@ -243,7 +242,6 @@ services:
     build:
       context: .
       dockerfile: auth-service/Dockerfile
-      network: host
     container_name: rentflow-auth
     environment:
       SPRING_PROFILES_ACTIVE: "${SPRING_PROFILES_ACTIVE:-docker}"
@@ -278,7 +276,6 @@ services:
     build:
       context: .
       dockerfile: lease-service/Dockerfile
-      network: host
     container_name: rentflow-lease
     environment:
       SPRING_PROFILES_ACTIVE: "${SPRING_PROFILES_ACTIVE:-docker}"
@@ -312,7 +309,6 @@ services:
     build:
       context: .
       dockerfile: property-management-service/Dockerfile
-      network: host
     container_name: rentflow-property
     environment:
       SPRING_PROFILES_ACTIVE: "${SPRING_PROFILES_ACTIVE:-docker}"
@@ -346,7 +342,6 @@ services:
     build:
       context: .
       dockerfile: maintainance-ticket-service/Dockerfile
-      network: host
     container_name: rentflow-maintenance
     environment:
       SPRING_PROFILES_ACTIVE: "${SPRING_PROFILES_ACTIVE:-docker}"
@@ -380,7 +375,6 @@ services:
     build:
       context: .
       dockerfile: payment-service/Dockerfile
-      network: host
     container_name: rentflow-payment
     environment:
       SPRING_PROFILES_ACTIVE: "${SPRING_PROFILES_ACTIVE:-docker}"
@@ -414,7 +408,6 @@ services:
     build:
       context: ./mpesa-service
       dockerfile: Dockerfile
-      network: host
     container_name: rentflow-mpesa
     environment:
       SPRING_PROFILES_ACTIVE: "${SPRING_PROFILES_ACTIVE:-docker}"
@@ -451,7 +444,6 @@ services:
     build:
       context: .
       dockerfile: notification-engine/Dockerfile
-      network: host
     container_name: rentflow-notification
     environment:
       SPRING_PROFILES_ACTIVE: "${SPRING_PROFILES_ACTIVE:-docker}"
@@ -488,7 +480,6 @@ services:
     build:
       context: ./admin-service
       dockerfile: Dockerfile
-      network: host
     container_name: rentflow-admin
     environment:
       SPRING_PROFILES_ACTIVE: "${SPRING_PROFILES_ACTIVE:-docker}"
@@ -529,7 +520,6 @@ services:
     build:
       context: ./gateway-service
       dockerfile: Dockerfile
-      network: host
     container_name: rentflow-gateway
     environment:
       SPRING_PROFILES_ACTIVE: "${SPRING_PROFILES_ACTIVE:-docker}"

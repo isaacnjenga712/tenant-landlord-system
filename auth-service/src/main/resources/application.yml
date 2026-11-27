@@ -18,9 +18,9 @@ spring:
         format_sql: true
     show-sql: false
   flyway:
-    enabled: ${SPRING_FLYWAY_ENABLED:false}
+    enabled: ${SPRING_FLYWAY_ENABLED:true}
     baseline-on-migrate: true
-    baseline-version: 3
+    baseline-version: 0
     baseline-description: "pre-Flyway schema captured from ddl-auto"
     table: flyway_history_auth
     locations: classpath:db/migration
@@ -100,7 +100,7 @@ management:
 
 logging:
   level:
-    com.apex.auth: ${LOG_LEVEL_AUTH:DEBUG}
+    com.apex.auth: ${LOG_LEVEL_AUTH:INFO}
     org.springframework.kafka: INFO
     org.apache.kafka: WARN
   pattern:

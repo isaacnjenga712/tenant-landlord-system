@@ -1,5 +1,6 @@
 package com.apex.auth.service;
 
+import com.apex.auth.audit.AuditEventPublisher;
 import com.apex.auth.dto.AuthenticationResponse;
 import com.apex.auth.dto.LoginRequest;
 import com.apex.auth.dto.RegisterRequest;
@@ -29,6 +30,7 @@ public class AuthenticationService {
     private final RefreshTokenService refreshTokenService;
     private final AuthenticationManager authenticationManager;
     private final KafkaEventPublisher kafkaEventPublisher;
+    private final AuditEventPublisher auditEventPublisher;
 
     // ============================================================
     // REGISTER
@@ -51,6 +53,16 @@ public class AuthenticationService {
         user = userRepository.save(user);
         log.info("Registered new user: id={} publicId={} email={} role={}",
                 user.getId(), user.getPublicId(), user.getEmail(), user.getRole());
+
+        // AUDIT: registration event — pass orgId explicitly from the user
+        auditEventPublisher.publish(
+                user.getOrgId(),
+                "USER_REGISTERED",
+                user.getPublicId(),
+                "USER",
+                user.getPublicId().toString(),
+                user.getEmail()
+        );
 
         kafkaEventPublisher.publishUserRegistered(user);
 
@@ -75,6 +87,16 @@ public class AuthenticationService {
         User user = (User) authentication.getPrincipal();
         log.info("User logged in: id={} publicId={} email={}",
                 user.getId(), user.getPublicId(), user.getEmail());
+
+        // AUDIT: login event — pass orgId explicitly from the user
+        auditEventPublisher.publish(
+                user.getOrgId(),
+                "USER_LOGIN",
+                user.getPublicId(),
+                "USER",
+                user.getPublicId().toString(),
+                user.getEmail()
+        );
 
         kafkaEventPublisher.publishUserLoggedIn(user);
 
@@ -119,6 +141,16 @@ public class AuthenticationService {
 
         log.info("Password changed for user id={} email={}", user.getId(), user.getEmail());
 
+        // AUDIT: password change event
+        auditEventPublisher.publish(
+                user.getOrgId(),
+                "USER_PASSWORD_CHANGED",
+                user.getPublicId(),
+                "USER",
+                user.getPublicId().toString(),
+                "password-changed"
+        );
+
         refreshTokenService.deleteByUser(user);
 
         kafkaEventPublisher.publishUserPasswordChanged(user);
@@ -141,7 +173,17 @@ public class AuthenticationService {
         user.setRole(newRole);
         userRepository.save(user);
 
-        log.info("Role changed for user id={}: {} → {}", user.getId(), oldRole, newRole);
+        log.info("Role changed for user id={}: {} -> {}", user.getId(), oldRole, newRole);
+
+        // AUDIT: role change event
+        auditEventPublisher.publish(
+                user.getOrgId(),
+                "USER_ROLE_CHANGED",
+                user.getPublicId(),
+                "USER",
+                user.getPublicId().toString(),
+                oldRole + "->" + newRole
+        );
 
         kafkaEventPublisher.publishUserRoleChanged(user, oldRole, newRole);
     }
@@ -161,6 +203,16 @@ public class AuthenticationService {
 
         user.setEnabled(false);
         userRepository.save(user);
+
+        // AUDIT: user disabled event
+        auditEventPublisher.publish(
+                user.getOrgId(),
+                "USER_DISABLED",
+                user.getPublicId(),
+                "USER",
+                user.getPublicId().toString(),
+                "reason=" + reason
+        );
 
         refreshTokenService.deleteByUser(user);
 

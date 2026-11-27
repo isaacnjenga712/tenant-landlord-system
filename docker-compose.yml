@@ -23,6 +23,11 @@ services:
     networks:
       - rentflow-network
     restart: unless-stopped
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
 
   postgres:
     image: postgres:15-alpine
@@ -42,6 +47,11 @@ services:
       retries: 5
     networks:
       - rentflow-network
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
 
   redis:
     image: redis:7-alpine
@@ -58,6 +68,11 @@ services:
       retries: 5
     networks:
       - rentflow-network
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
 
   mongodb:
     image: mongo:7.0
@@ -76,6 +91,11 @@ services:
       retries: 5
     networks:
       - rentflow-network
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
 
   kafka:
     image: apache/kafka:3.8.0
@@ -102,6 +122,11 @@ services:
     networks:
       - rentflow-network
     restart: unless-stopped
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
 
   # ============================================================
   # OBSERVABILITY
@@ -123,6 +148,11 @@ services:
     networks:
       - rentflow-network
     restart: unless-stopped
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
 
   grafana:
     image: grafana/grafana:11.3.0
@@ -143,6 +173,11 @@ services:
     networks:
       - rentflow-network
     restart: unless-stopped
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
 
   zipkin:
     image: openzipkin/zipkin:3.4
@@ -155,6 +190,11 @@ services:
     networks:
       - rentflow-network
     restart: unless-stopped
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
 
   kafka-exporter:
     image: danielqsj/kafka-exporter:v1.8.0
@@ -169,6 +209,11 @@ services:
     networks:
       - rentflow-network
     restart: unless-stopped
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
 
   node-exporter:
     image: prom/node-exporter:v1.8.2
@@ -183,6 +228,11 @@ services:
     networks:
       - rentflow-network
     restart: unless-stopped
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
 
   # ============================================================
   # MICROSERVICES
@@ -216,6 +266,11 @@ services:
       - "8090:8080"
     networks:
       - rentflow-network
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
 
   lease-service:
     build:
@@ -244,6 +299,11 @@ services:
       - "8085:8081"
     networks:
       - rentflow-network
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
 
   property-management-service:
     build:
@@ -272,6 +332,11 @@ services:
       - "8082:8082"
     networks:
       - rentflow-network
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
 
   maintainance-ticket-service:
     build:
@@ -300,6 +365,11 @@ services:
       - "8084:8084"
     networks:
       - rentflow-network
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
 
   payment-service:
     build:
@@ -328,6 +398,11 @@ services:
       - "8086:8086"
     networks:
       - rentflow-network
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
 
   mpesa-service:
     build:
@@ -359,6 +434,11 @@ services:
       - "8089:8088"
     networks:
       - rentflow-network
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
 
   notification-engine:
     build:
@@ -390,6 +470,11 @@ services:
       - "8081:8080"
     networks:
       - rentflow-network
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
 
   admin-service:
     build:
@@ -421,6 +506,11 @@ services:
     networks:
       - rentflow-network
     restart: unless-stopped
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
 
   # ============================================================
   # GATEWAY
@@ -451,6 +541,11 @@ services:
       - "8080:8080"
     networks:
       - rentflow-network
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
 
   # ============================================================
   # EDGE
@@ -469,6 +564,11 @@ services:
       - auth-service
     networks:
       - rentflow-network
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
 
 volumes:
   pgdata:

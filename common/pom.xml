@@ -74,6 +74,29 @@
             <version>${servlet.api.version}</version>
             <scope>provided</scope>
         </dependency>
+
+        <!-- ================== JPA / Persistence ================== -->
+        <!-- Provides jakarta.persistence.* annotations for AuditLog entity -->
+        <dependency>
+            <groupId>jakarta.persistence</groupId>
+            <artifactId>jakarta.persistence-api</artifactId>
+        </dependency>
+
+        <!-- ================== Spring Data JPA ================== -->
+        <!-- Provides JpaRepository for AuditLogRepository -->
+        <dependency>
+            <groupId>org.springframework.data</groupId>
+            <artifactId>spring-data-jpa</artifactId>
+        </dependency>
+
+        <!-- ================== Spring Transaction ================== -->
+        <!-- Provides @Transactional for AuditEventPublisher and cleanup job -->
+        <dependency>
+            <groupId>org.springframework</groupId>
+            <artifactId>spring-tx</artifactId>
+            <version>${spring.version}</version>
+            <scope>provided</scope>
+        </dependency>
     </dependencies>
 
     <build>

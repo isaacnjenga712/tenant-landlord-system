@@ -18,9 +18,9 @@ spring:
         dialect: org.hibernate.dialect.PostgreSQLDialect
         format_sql: true
   flyway:
-    enabled: ${SPRING_FLYWAY_ENABLED:false}
+    enabled: ${SPRING_FLYWAY_ENABLED:true}
     baseline-on-migrate: true
-    baseline-version: 2
+    baseline-version: 0
     baseline-description: "pre-Flyway schema captured from ddl-auto"
     table: flyway_history_property
     locations: classpath:db/migration
